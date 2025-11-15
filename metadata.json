@@ -1,0 +1,7 @@
+{
+  "name": "LingoQuest",
+  "description": "A vibrant, AI-powered language learning companion supporting over 100 languages with personalized lessons and progress tracking.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
