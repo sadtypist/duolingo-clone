@@ -32,6 +32,14 @@ export interface DailyGoal {
   type: 'XP' | 'LESSONS';
 }
 
+export interface UserPreferences {
+  autoDifficulty: boolean;
+  enableSoundEffects: boolean;
+  enableStreakFreeze: boolean;
+  showCharacters: boolean;
+  dailyGoalXp: number;
+}
+
 export interface UserProfile {
   id: string;
   email?: string; // Auth
@@ -50,6 +58,8 @@ export interface UserProfile {
   achievements: string[]; // IDs of unlocked achievements
   dailyGoals: DailyGoal[];
   isGuest?: boolean; // New flag for auth flow
+  hasCompletedOnboarding: boolean; // Tracks if user has passed landing screen
+  preferences: UserPreferences;
 }
 
 export interface CharacterSymbol {

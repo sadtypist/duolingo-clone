@@ -18,7 +18,7 @@ export const LanguageSelection: React.FC<LanguageSelectionProps> = ({ user, onSe
   );
 
   return (
-    <div className="p-6 pb-24 max-w-4xl mx-auto">
+    <div className="h-full overflow-y-auto p-6 pb-24">
       <header className="mb-8 text-center">
         <h1 className="text-2xl font-extrabold text-gray-700 mb-2">I want to learn...</h1>
         <div className="relative max-w-md mx-auto">

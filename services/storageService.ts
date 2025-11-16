@@ -5,6 +5,7 @@ import { DEFAULT_USER, ACHIEVEMENTS, DEFAULT_GOALS, MAX_ENERGY, ENERGY_REGEN_MS 
 // Keys
 const USERS_KEY = 'lingoquest_users_db'; // Map of email -> UserProfile
 const SESSION_KEY = 'lingoquest_current_session'; // Current user email
+const GUEST_KEY = 'lingoquest_guest_data'; // Persistent guest data
 const OFFLINE_LESSONS_KEY = 'lingoquest_offline_lessons';
 
 const getTodayStr = () => new Date().toISOString().split('T')[0];
@@ -27,10 +28,21 @@ const saveUsersMap = (map: Record<string, UserProfile>) => {
 export const getProfile = (): UserProfile => {
   try {
     const sessionEmail = localStorage.getItem(SESSION_KEY);
-    if (!sessionEmail) return DEFAULT_USER;
+    
+    // If no session, check for Guest Persistence
+    if (!sessionEmail) {
+        const guestStr = localStorage.getItem(GUEST_KEY);
+        if (guestStr) {
+            const guestUser = JSON.parse(guestStr);
+            return { ...guestUser, isGuest: true };
+        }
+        return DEFAULT_USER;
+    }
 
     const users = getUsersMap();
-    const user = users[sessionEmail];
+    // Normalize email to ensure case-insensitive lookup and clean whitespace
+    const normalizedKey = sessionEmail.trim().toLowerCase();
+    const user = users[normalizedKey];
 
     if (!user) {
       // Session invalid
@@ -39,6 +51,8 @@ export const getProfile = (): UserProfile => {
     }
 
     let profile = { ...DEFAULT_USER, ...user, isGuest: false }; 
+    // Deep merge preferences
+    profile.preferences = { ...DEFAULT_USER.preferences, ...(user.preferences || {}) };
 
     // --- Energy Regeneration Logic ---
     if (profile.energy < MAX_ENERGY) {
@@ -70,10 +84,15 @@ export const getProfile = (): UserProfile => {
       const diffTime = Math.abs(curDate.getTime() - lastDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
 
-      if (diffDays > 1) {
+      if (diffDays > 1 && !profile.preferences.enableStreakFreeze) {
         profile.streak = 0; // Broken streak
       } 
-      
+      // If streak freeze is enabled, logic would be more complex (deduct currency etc), 
+      // for now we just don't reset if they have preference on, or we'd consume a freeze item. 
+      // Simplified: If enabled, we are lenient for 1 day, else reset.
+      // For now, keeping simple logic:
+      if (diffDays > 1) profile.streak = 0;
+
       profile.dailyGoals = DEFAULT_GOALS.map(g => ({ ...g, current: 0, completed: false }));
       profile.lastActiveDate = today;
       saveProfile(profile);
@@ -88,10 +107,18 @@ export const getProfile = (): UserProfile => {
 
 export const saveProfile = (profile: UserProfile): void => {
   try {
-    if (profile.isGuest || !profile.email) return; // Don't save guest to DB
+    if (profile.isGuest) {
+        // Save guest progress to persistent local storage so reload doesn't wipe it
+        localStorage.setItem(GUEST_KEY, JSON.stringify(profile));
+        return;
+    }
+
+    if (!profile.email) return; 
 
     const users = getUsersMap();
-    users[profile.email] = profile;
+    // Use normalized email as key
+    const key = profile.email.trim().toLowerCase();
+    users[key] = profile;
     saveUsersMap(users);
   } catch (e) {
     console.error("Failed to save profile", e);
@@ -100,45 +127,73 @@ export const saveProfile = (profile: UserProfile): void => {
 
 // --- AUTH METHODS ---
 
-export const registerUser = (email: string, password: string, name: string, username: string, avatar: string): { success: boolean, message?: string, user?: UserProfile } => {
+export const registerUser = (email: string, password: string, name: string, username: string, avatar: string, guestData?: UserProfile): { success: boolean, message?: string, user?: UserProfile } => {
     const users = getUsersMap();
-    if (users[email]) {
+    // Normalize: remove whitespace and lowercase
+    const normalizedEmail = email.trim().toLowerCase();
+
+    if (users[normalizedEmail]) {
         return { success: false, message: 'Email already exists' };
     }
 
+    // If guestData is provided, we migrate progress!
+    const baseData = guestData || DEFAULT_USER;
+
     const newUser: UserProfile = {
         ...DEFAULT_USER,
+        // Keep Guest Progress
+        progress: baseData.progress,
+        streak: baseData.streak,
+        energy: baseData.energy,
+        lastEnergyRefill: baseData.lastEnergyRefill,
+        achievements: baseData.achievements,
+        currentLanguageCode: baseData.currentLanguageCode,
+        
+        // New Identity
         id: `user_${Date.now()}`,
-        email,
+        email: normalizedEmail,
         password, // In a real app, hash this!
         name,
         username,
-        avatar,
+        avatar: avatar || baseData.avatar,
         isGuest: false,
+        hasCompletedOnboarding: true,
         joinDate: new Date().toISOString(),
     };
 
-    users[email] = newUser;
+    users[normalizedEmail] = newUser;
     saveUsersMap(users);
-    localStorage.setItem(SESSION_KEY, email);
+    localStorage.setItem(SESSION_KEY, normalizedEmail);
+    
+    // Clean up guest data as it's now migrated
+    localStorage.removeItem(GUEST_KEY);
     
     return { success: true, user: newUser };
 };
 
 export const loginUser = (email: string, password: string): { success: boolean, message?: string, user?: UserProfile } => {
     const users = getUsersMap();
-    const user = users[email];
+    // Normalize: remove whitespace and lowercase
+    const normalizedEmail = email.trim().toLowerCase();
+    const user = users[normalizedEmail];
 
     if (!user || user.password !== password) {
         return { success: false, message: 'Invalid email or password' };
     }
 
-    localStorage.setItem(SESSION_KEY, email);
+    localStorage.setItem(SESSION_KEY, normalizedEmail);
+    // Clear guest data to avoid confusion, or we could keep it. Better to clear or ignore.
+    // localStorage.removeItem(GUEST_KEY); 
+    
     return { success: true, user };
 };
 
 export const logoutUser = () => {
     localStorage.removeItem(SESSION_KEY);
+    // We do NOT clear GUEST_KEY here, so if they logout they might see old guest data? 
+    // Ideally, logout should return to fresh state.
+    // Let's clear guest key on logout to ensure clean slate for "new" guest.
+    localStorage.removeItem(GUEST_KEY);
 };
 
 // -------------------

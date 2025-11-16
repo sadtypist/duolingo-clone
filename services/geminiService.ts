@@ -33,6 +33,11 @@ export const generateLesson = async (
     - "Which character is [sound]?" (Options are characters)
     - "What sound does [character] make?" (Options are romanization)
     - "Select the matching character for [sound]"
+
+    IMPORTANT: 
+    - Do NOT ask to translate sentences.
+    - Do NOT use FILL_BLANK with sentences.
+    - Focus on recognition and sound association using MULTIPLE_CHOICE and LISTENING types.
     `;
   } else if (isPractice) {
      adaptiveContext = `This is a PRACTICE session. The user has struggled with: ${weakAreas.join(', ')}. Generate questions SPECIFICALLY testing these topics.`;
@@ -43,10 +48,14 @@ export const generateLesson = async (
   }
 
   let difficultyInstruction = "";
-  switch(difficulty) {
-      case 'Easy': difficultyInstruction = "Difficulty: EASY. Use simple vocabulary, clear context, shorter sentences, and avoid complex grammar exceptions."; break;
-      case 'Medium': difficultyInstruction = "Difficulty: MEDIUM. Standard complexity for this proficiency level. Mix common and slightly challenging concepts."; break;
-      case 'Hard': difficultyInstruction = "Difficulty: HARD. Challenge the user with complex sentence structures, advanced vocabulary, faster implied speech context, and trickier distractors."; break;
+  if (focusCharacters.length > 0) {
+      difficultyInstruction = "Difficulty: BEGINNER. Focus strictly on identifying these characters and their sounds. No complex grammar.";
+  } else {
+      switch(difficulty) {
+          case 'Easy': difficultyInstruction = "Difficulty: EASY. Use simple vocabulary, clear context, shorter sentences, and avoid complex grammar exceptions."; break;
+          case 'Medium': difficultyInstruction = "Difficulty: MEDIUM. Standard complexity for this proficiency level. Mix common and slightly challenging concepts."; break;
+          case 'Hard': difficultyInstruction = "Difficulty: HARD. Challenge the user with complex sentence structures, advanced vocabulary, faster implied speech context, and trickier distractors."; break;
+      }
   }
 
   const prompt = `Create a ${difficulty} ${isPractice ? 'practice review' : 'dynamic lesson'} for learning ${languageName} (Level ${userLevel}/10).

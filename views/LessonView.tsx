@@ -5,7 +5,7 @@ import { generateLesson, validateTranslation } from '../services/geminiService';
 import { completeLesson, popOfflineLesson } from '../services/storageService';
 import { LANGUAGES, XP_PER_LESSON, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame } from 'lucide-react';
+import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame, ArrowRight, Lightbulb } from 'lucide-react';
 
 // Polyfill for SpeechRecognition types
 declare global {
@@ -24,12 +24,28 @@ interface LessonViewProps {
 }
 
 export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit, isPractice = false, focusCharacters = [] }) => {
-  const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | null>(null);
+  // Determine initial difficulty if auto-set
+  const getInitialDifficulty = () => {
+    // For character lessons, bypass difficulty selection and default to Easy/Standard
+    if (focusCharacters.length > 0) return 'Easy';
+
+    if (user.preferences?.autoDifficulty && user.currentLanguageCode) {
+      const level = user.progress[user.currentLanguageCode]?.level || 1;
+      if (level < 25) return 'Easy';
+      if (level < 50) return 'Medium';
+      return 'Hard';
+    }
+    return null;
+  };
+
+  const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | null>(getInitialDifficulty());
   const [loading, setLoading] = useState(true);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showQuitModal, setShowQuitModal] = useState(false);
+  const [showSkipModal, setShowSkipModal] = useState(false);
+  const [showHint, setShowHint] = useState(false);
   
   // User Input States
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
@@ -157,6 +173,24 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     recognition.start();
   };
 
+  const playSuccessSound = () => {
+     if (!user.preferences?.enableSoundEffects) return;
+
+     // Pleasant magic chime sound
+     const audio = new Audio("https://actions.google.com/sounds/v1/cartoon/magic_chime.ogg");
+     audio.volume = 0.4;
+     audio.play().catch(() => {});
+  }
+
+  const playErrorSound = () => {
+     if (!user.preferences?.enableSoundEffects) return;
+
+     // Error sound
+     const audio = new Audio("https://actions.google.com/sounds/v1/cartoon/clang_and_wobble.ogg");
+     audio.volume = 0.3;
+     audio.play().catch(() => {});
+  }
+
   const handleCheck = async () => {
     if (!lesson) return;
     setIsChecking(true);
@@ -197,15 +231,10 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     } else {
       setFeedback('incorrect');
       setIncorrectQuestions(prev => [...prev, topic]);
+      playErrorSound();
     }
     setIsChecking(false);
   };
-  
-  const playSuccessSound = () => {
-     const audio = new Audio("https://actions.google.com/sounds/v1/cartoon/pop.ogg");
-     audio.volume = 0.5;
-     audio.play().catch(() => {});
-  }
 
   const handleNext = () => {
     if (!lesson) return;
@@ -216,6 +245,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     setTypedAnswer('');
     setIsListening(false);
     setIsChecking(false);
+    setShowHint(false);
     window.speechSynthesis.cancel();
 
     if (currentQuestionIndex < lesson.questions.length - 1) {
@@ -223,6 +253,16 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     } else {
       finishLesson();
     }
+  };
+
+  const handleSkipConfirmation = () => {
+    setShowSkipModal(false);
+    // Treat as weak area for adaptive purposes but no feedback penalty
+    const currentQ = lesson?.questions[currentQuestionIndex];
+    if (currentQ) {
+        setIncorrectQuestions(prev => [...prev, currentQ.topic || 'General']);
+    }
+    handleNext();
   };
 
   const finishLesson = () => {
@@ -243,6 +283,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       const ach = ACHIEVEMENTS.find(a => a.id === result.newAchievements[0]);
       if (ach) {
         setShowAchievement(ach.title);
+        if (user.preferences?.enableSoundEffects) {
+            playSuccessSound();
+        }
         setTimeout(() => {
           onComplete(result.profile);
         }, 2500);
@@ -353,30 +396,37 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   return (
     <div className="flex flex-col h-full max-w-lg mx-auto bg-white sm:border-x border-gray-200 sm:shadow-lg min-h-screen relative">
-      {/* Offline Indicator */}
+      {/* Offline Indicator - Now flows naturally so header can be sticky properly */}
       {isOfflineMode && (
-          <div className="absolute top-0 left-0 right-0 bg-gray-800 text-white text-xs text-center py-1 z-10">
+          <div className="bg-gray-800 text-white text-xs text-center py-1">
               Offline Mode
           </div>
       )}
 
-      {/* Header */}
-      <div className="px-4 py-6 flex items-center gap-4 mt-4">
+      {/* Header - Sticky and visually enhanced */}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm px-4 py-4 flex items-center gap-4 border-b border-gray-50 shadow-sm">
         <button onClick={() => setShowQuitModal(true)} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={24} />
         </button>
-        <div className="flex-1 bg-gray-200 rounded-full h-4">
-          <div 
-            className={`${themeBg} h-4 rounded-full transition-all duration-500 ease-out`}
-            style={{ width: `${progressPercent}%` }}
-          />
+        
+        <div className="flex-1 flex items-center gap-3" role="progressbar" aria-valuenow={Math.round(progressPercent)} aria-valuemin={0} aria-valuemax={100}>
+            <div className="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden">
+              <div 
+                className={`${themeBg} h-4 rounded-full transition-all duration-500 ease-out`}
+                style={{ width: `${Math.max(5, progressPercent)}%` }}
+              />
+            </div>
+            <span className="text-xs font-black text-gray-400 tabular-nums min-w-[3ch]">
+                {Math.round(progressPercent)}%
+            </span>
         </div>
+
         {isPractice && <Dumbbell className="text-purple-500" size={24} />}
         {focusCharacters.length > 0 && <BookA className="text-brand-blue" size={24} />}
       </div>
 
       {/* Question Area */}
-      <div className="flex-1 px-6 flex flex-col justify-center pb-24 overflow-y-auto">
+      <div className="flex-1 px-6 flex flex-col justify-center pb-24 overflow-y-auto pt-6">
         
         <div className="mb-6">
            {currentQ.type === QuestionType.FILL_BLANK && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Fill in the blank</span>}
@@ -426,6 +476,39 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
            )}
         </div>
 
+        {/* Hint Section */}
+        {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.FILL_BLANK) && (
+            <div className="mb-6">
+                {!showHint ? (
+                    <button 
+                        onClick={() => setShowHint(true)}
+                        className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-brand-blue transition-colors group"
+                    >
+                        <div className="p-1 rounded-full group-hover:bg-blue-50 transition-colors">
+                            <Lightbulb size={18} />
+                        </div>
+                        <span>Need a hint?</span>
+                    </button>
+                ) : (
+                    <div className="inline-flex items-start gap-3 bg-blue-50 border border-brand-blue/20 px-4 py-3 rounded-xl text-brand-blue animate-in fade-in slide-in-from-top-2">
+                        <Lightbulb size={18} className="flex-shrink-0 mt-0.5" />
+                        <div className="flex flex-col">
+                             {currentQ.topic && (
+                               <span className="text-[10px] font-black opacity-60 uppercase tracking-wider mb-1">
+                                 Topic: {currentQ.topic}
+                               </span>
+                             )}
+                             <span className="text-sm font-bold leading-tight">
+                                {currentQ.type === QuestionType.TRANSLATE 
+                                    ? `Try using "${currentQ.correctAnswer.split(' ')[0]}"` 
+                                    : `Starts with "${currentQ.correctAnswer.charAt(0)}"`}
+                             </span>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
+
         {/* Input Area */}
         {isSpeaking ? (
           <div className="flex flex-col items-center gap-6">
@@ -454,7 +537,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                placeholder="Type your translation here..."
                className={`
                  w-full p-4 rounded-xl border-2 min-h-[120px] text-lg font-medium resize-none outline-none transition-all
-                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 text-brand-green-dark' : 
+                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 text-brand-green-dark scale-105 ring-4 ring-green-200 shadow-lg' : 
                    feedback === 'incorrect' ? 'border-brand-red bg-red-50 text-brand-red' : 
                    'border-gray-200 bg-gray-50 focus:border-brand-blue focus:bg-white text-gray-700'}
                `}
@@ -473,7 +556,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
               
               // Visual states for feedback
               let statusClass = "border-gray-200 hover:bg-gray-50";
-              if (feedback === 'correct' && isCorrect) statusClass = "bg-green-100 border-brand-green text-brand-green-dark";
+              if (feedback === 'correct' && isCorrect) statusClass = "bg-green-100 border-brand-green text-brand-green-dark ring-4 ring-green-200 scale-105 shadow-lg z-10 transition-transform duration-500 ease-out";
               if (feedback === 'incorrect' && isSelected) statusClass = "bg-red-100 border-brand-red text-brand-red";
               if (!feedback && isSelected) statusClass = "bg-blue-50 border-brand-blue text-brand-blue";
 
@@ -486,12 +569,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                     speak(option, currentLang.code); // SPEAK SELECTION
                   }}
                   className={`
-                    w-full p-4 rounded-xl border-2 text-lg font-semibold text-left transition-all
+                    w-full p-4 rounded-xl border-2 text-lg font-semibold text-left transition-all flex justify-between items-center
                     ${statusClass}
                     ${feedback ? 'cursor-default' : 'cursor-pointer shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-[4px]'}
                   `}
                 >
-                  {option}
+                  <span>{option}</span>
+                  {feedback === 'correct' && isCorrect && <Check size={24} className="animate-bounce-short" />}
                 </button>
               )
             })}
@@ -520,20 +604,31 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
           )}
           
           {!feedback && (
-            <div className="flex-1">
-               <Button 
-                 fullWidth 
-                 size="lg" 
-                 onClick={handleCheck} 
-                 disabled={!canCheck || isChecking}
-                 variant={isPractice ? 'practice' : 'primary'}
-               >
-                 {isChecking ? (
-                   <div className="flex items-center justify-center gap-2">
-                     <Loader2 className="animate-spin" size={20} /> Checking...
-                   </div>
-                 ) : 'Check'}
-               </Button>
+            <div className="flex-1 flex gap-3 items-center">
+               <div className="flex-none">
+                  <Button 
+                    variant="ghost" 
+                    onClick={() => setShowSkipModal(true)}
+                    className="text-gray-400 hover:text-gray-600 font-extrabold uppercase tracking-widest"
+                  >
+                    Skip
+                  </Button>
+               </div>
+               <div className="flex-1">
+                  <Button 
+                    fullWidth 
+                    size="lg" 
+                    onClick={handleCheck} 
+                    disabled={!canCheck || isChecking}
+                    variant={isPractice ? 'practice' : 'primary'}
+                  >
+                    {isChecking ? (
+                      <div className="flex items-center justify-center gap-2">
+                        <Loader2 className="animate-spin" size={20} /> Checking...
+                      </div>
+                    ) : 'Check'}
+                  </Button>
+               </div>
             </div>
           )}
 
@@ -552,6 +647,32 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
         </div>
       </div>
+
+      {/* Skip Confirmation Modal */}
+      {showSkipModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200 backdrop-blur-sm">
+           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center transform scale-100 transition-all border-2 border-gray-100">
+               <div className="mb-6 flex justify-center">
+                 <div className="bg-gray-50 p-4 rounded-full border-2 border-gray-100 shadow-sm">
+                    <ArrowRight size={40} className="text-gray-400" strokeWidth={2.5} />
+                 </div>
+               </div>
+               <h2 className="text-2xl font-extrabold text-gray-800 mb-3">Skip this question?</h2>
+               <p className="text-gray-500 font-bold mb-8 text-sm leading-relaxed">
+                 You won't receive XP for this answer, but you can keep learning.
+               </p>
+               
+               <div className="flex flex-col gap-3">
+                 <Button variant="secondary" size="lg" fullWidth onClick={handleSkipConfirmation} className="uppercase tracking-widest">
+                   Yes, Skip
+                 </Button>
+                 <Button variant="outline" size="lg" fullWidth onClick={() => setShowSkipModal(false)} className="uppercase tracking-widest border-2 border-gray-200 hover:bg-gray-50 shadow-none">
+                   Cancel
+                 </Button>
+               </div>
+           </div>
+        </div>
+      )}
 
       {/* Quit Confirmation Modal */}
       {showQuitModal && (

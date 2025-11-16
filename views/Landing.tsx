@@ -1,16 +1,18 @@
 
 import React, { useState, useRef } from 'react';
 import { Button } from '../components/Button';
-import { Globe, Sparkles, ArrowRight, Mail, Lock, User, AtSign, ChevronLeft, Camera } from 'lucide-react';
+import { Globe, Sparkles, ArrowRight, Mail, Lock, User, AtSign, ChevronLeft, Camera, UserCircle } from 'lucide-react';
 import { UserProfile } from '../types';
-import { AVATARS } from '../constants';
 import { registerUser, loginUser } from '../services/storageService';
+import { AVATARS } from '../constants';
 
 interface LandingProps {
   onLogin: (user: UserProfile) => void;
+  onContinueAsGuest: () => void;
+  user?: UserProfile; // Current user state (guest data)
 }
 
-export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
+export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, user }) => {
   const [view, setView] = useState<'hero' | 'login' | 'signup_1' | 'signup_2'>('hero');
   
   // Form States
@@ -18,8 +20,11 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
-  const [avatar, setAvatar] = useState(AVATARS[0]);
   const [error, setError] = useState('');
+
+  // Avatar Selection State
+  const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
+  const [isCustomUpload, setIsCustomUpload] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -28,7 +33,8 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
     setPassword('');
     setName('');
     setUsername('');
-    setAvatar(AVATARS[0]);
+    setSelectedAvatar(AVATARS[0]);
+    setIsCustomUpload(false);
     setError('');
   };
 
@@ -39,7 +45,8 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
         return;
     }
 
-    const result = loginUser(email, password);
+    // Trim inputs to avoid whitespace errors
+    const result = loginUser(email.trim(), password.trim());
     if (result.success && result.user) {
         onLogin(result.user);
     } else {
@@ -65,7 +72,8 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setAvatar(reader.result as string);
+        setSelectedAvatar(reader.result as string);
+        setIsCustomUpload(true);
       };
       reader.readAsDataURL(file);
     }
@@ -78,7 +86,9 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
         return;
     }
 
-    const result = registerUser(email, password, name, username, avatar);
+    // Trim inputs to avoid whitespace errors
+    // Pass current 'user' (Guest Data) to preserve progress
+    const result = registerUser(email.trim(), password.trim(), name, username, selectedAvatar, user);
     if (result.success && result.user) {
         onLogin(result.user);
     } else {
@@ -110,6 +120,12 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
                 <Button fullWidth size="lg" variant="outline" onClick={() => { clearForms(); setView('login'); }} className="text-lg h-14 uppercase tracking-widest">
                   I already have an account
                 </Button>
+                <button 
+                  onClick={onContinueAsGuest}
+                  className="text-gray-400 hover:text-gray-600 font-bold uppercase tracking-widest text-xs mt-4 flex items-center gap-2 justify-center w-full transition-colors"
+                >
+                   <UserCircle size={16} /> Continue as Guest
+                </button>
             </div>
         </div>
       )}
@@ -125,14 +141,22 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
                     <div className="relative">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                         <input 
-                            type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
+                            type="email" 
+                            placeholder="Email" 
+                            autoComplete="email"
+                            value={email} 
+                            onChange={e => setEmail(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
                         />
                     </div>
                     <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                         <input 
-                            type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
+                            type="password" 
+                            placeholder="Password" 
+                            autoComplete="current-password"
+                            value={password} 
+                            onChange={e => setPassword(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
                         />
                     </div>
@@ -156,14 +180,22 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
                     <div className="relative">
                         <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                         <input 
-                            type="email" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)}
+                            type="email" 
+                            placeholder="Email" 
+                            autoComplete="email"
+                            value={email} 
+                            onChange={e => setEmail(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
                         />
                     </div>
                     <div className="relative">
                         <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
                         <input 
-                            type="password" placeholder="Password" value={password} onChange={e => setPassword(e.target.value)}
+                            type="password" 
+                            placeholder="Password" 
+                            autoComplete="new-password"
+                            value={password} 
+                            onChange={e => setPassword(e.target.value)}
                             className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
                         />
                     </div>
@@ -176,55 +208,75 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
       )}
 
       {view === 'signup_2' && (
-        <div className="max-w-md w-full z-10 animate-in slide-in-from-right-10 fade-in duration-500">
-            <div className="bg-white/90 backdrop-blur border-2 border-gray-200 p-8 rounded-3xl shadow-xl">
+        <div className="max-w-lg w-full z-10 animate-in slide-in-from-right-10 fade-in duration-500">
+            <div className="bg-white/95 backdrop-blur border-2 border-gray-200 p-6 rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto flex flex-col">
                 <div className="flex items-center mb-4">
                     <button onClick={() => setView('signup_1')} className="p-2 hover:bg-gray-100 rounded-full mr-2 text-gray-400">
                         <ChevronLeft size={24} />
                     </button>
-                    <h2 className="text-2xl font-extrabold text-gray-800 text-center flex-1 mr-10">Profile Setup</h2>
+                    <h2 className="text-xl font-extrabold text-gray-800 text-center flex-1 mr-10">Create Profile</h2>
                 </div>
 
                 {error && <div className="bg-red-100 text-red-600 p-3 rounded-lg text-sm font-bold mb-4 text-center">{error}</div>}
 
-                <div className="space-y-4 mb-6">
-                    <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <div className="grid grid-cols-2 gap-4 mb-6">
+                    <div className="relative col-span-2 sm:col-span-1">
+                        <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input 
                             type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
+                            className="w-full pl-10 pr-3 py-2 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none text-sm"
                         />
                     </div>
-                    <div className="relative">
-                        <AtSign className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                    <div className="relative col-span-2 sm:col-span-1">
+                        <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input 
                             type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
+                            className="w-full pl-10 pr-3 py-2 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none text-sm"
                         />
                     </div>
+                </div>
 
-                    <div>
-                        <label className="block text-xs font-bold text-gray-400 uppercase mb-4 ml-1 text-center">Your Avatar</label>
+                <div className="mb-6">
+                    <div className="flex flex-col items-center mb-4">
+                        <div className="w-24 h-24 rounded-full border-4 border-brand-blue bg-blue-50 flex items-center justify-center text-6xl overflow-hidden shadow-md mb-2">
+                            {selectedAvatar.startsWith('data:') ? (
+                                <img src={selectedAvatar} className="w-full h-full object-cover" alt="Avatar Preview" />
+                            ) : (
+                                selectedAvatar
+                            )}
+                        </div>
+                        <p className="text-xs font-bold text-gray-400 uppercase">Preview</p>
+                    </div>
+
+                    <div className="bg-gray-50 rounded-2xl p-4 border-2 border-gray-100">
+                        <p className="text-sm font-extrabold text-gray-700 mb-3 text-center">Choose an Avatar</p>
                         
-                        <div className="flex flex-col items-center mb-6">
-                            <div 
-                                className="relative w-24 h-24 rounded-full border-4 border-gray-100 bg-gray-50 flex items-center justify-center text-5xl shadow-sm cursor-pointer overflow-hidden group hover:border-brand-blue transition-colors"
-                                onClick={() => fileInputRef.current?.click()}
-                            >
-                                {avatar.startsWith('data:') ? (
-                                    <img src={avatar} alt="Avatar" className="w-full h-full object-cover" />
-                                ) : (
-                                    <span>{avatar}</span>
-                                )}
-                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <Camera className="text-white" />
-                                </div>
+                        <div className="max-h-60 overflow-y-auto pr-2 mb-4 custom-scrollbar">
+                            <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
+                                {AVATARS.map(av => (
+                                    <button 
+                                        key={av} 
+                                        onClick={() => { setSelectedAvatar(av); setIsCustomUpload(false); }}
+                                        className={`aspect-square flex items-center justify-center text-2xl rounded-xl transition-all ${selectedAvatar === av && !isCustomUpload ? 'bg-white border-2 border-brand-blue shadow-sm scale-110' : 'hover:bg-gray-200 border border-transparent'}`}
+                                    >
+                                        {av}
+                                    </button>
+                                ))}
                             </div>
+                        </div>
+                        
+                        <div className="flex items-center justify-center gap-3">
+                            <div className="h-px bg-gray-200 flex-1"></div>
+                            <span className="text-xs font-bold text-gray-400">OR</span>
+                            <div className="h-px bg-gray-200 flex-1"></div>
+                        </div>
+
+                        <div className="mt-3 flex justify-center">
                             <button 
                                 onClick={() => fileInputRef.current?.click()}
-                                className="mt-2 text-sm font-bold text-brand-blue hover:underline"
+                                className="flex items-center gap-2 bg-white border-2 border-gray-200 px-4 py-2 rounded-xl font-bold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-all text-sm shadow-sm"
                             >
-                                Upload Photo
+                                <Camera size={16} /> Upload Photo
                             </button>
                             <input 
                                 type="file" 
@@ -233,19 +285,6 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
                                 accept="image/*" 
                                 onChange={handleAvatarUpload} 
                             />
-                        </div>
-
-                        <label className="block text-xs font-bold text-gray-400 uppercase mb-2 ml-1">Or choose a preset</label>
-                        <div className="grid grid-cols-6 gap-2 p-2 bg-gray-50 rounded-xl border-2 border-gray-100">
-                            {AVATARS.map(av => (
-                                <button 
-                                    key={av} 
-                                    onClick={() => setAvatar(av)}
-                                    className={`text-2xl p-2 rounded-lg hover:bg-white transition-all ${avatar === av ? 'bg-white shadow-md scale-110 ring-2 ring-brand-blue' : 'opacity-70'}`}
-                                >
-                                    {av}
-                                </button>
-                            ))}
                         </div>
                     </div>
                 </div>
@@ -256,7 +295,7 @@ export const Landing: React.FC<LandingProps> = ({ onLogin }) => {
       )}
 
       {/* Footer Badges */}
-      <div className="absolute bottom-6 flex gap-4 opacity-50">
+      <div className="absolute bottom-6 flex gap-4 opacity-50 pointer-events-none">
          <div className="flex items-center gap-1 text-xs font-bold text-gray-400">
             <Sparkles size={14} /> AI Powered
          </div>

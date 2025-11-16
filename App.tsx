@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile } from './types';
 import { DEFAULT_USER } from './constants';
 import { getProfile, saveProfile, consumeEnergy, logoutUser } from './services/storageService';
-import { Navigation } from './components/BottomNav';
+import { Navigation } from './components/BottomNav.tsx';
 import { LanguageSelection } from './views/LanguageSelection';
 import { Profile } from './views/Profile';
 import { Dashboard } from './views/Dashboard';
@@ -11,36 +11,40 @@ import { LessonView } from './views/LessonView';
 import { Leaderboard } from './views/Leaderboard';
 import { Landing } from './views/Landing';
 import { CharactersView } from './views/CharactersView';
+import { SettingsView } from './views/Settings';
 import { Wifi } from 'lucide-react';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<UserProfile>(DEFAULT_USER);
-  const [currentView, setCurrentView] = useState('home'); // 'home' | 'languages' | 'profile' | 'lesson' | 'leaderboard' | 'characters'
+  const [currentView, setCurrentView] = useState('home'); // 'home' | 'languages' | 'profile' | 'lesson' | 'leaderboard' | 'characters' | 'settings'
   const [isLessonActive, setIsLessonActive] = useState(false);
   const [isPracticeMode, setIsPracticeMode] = useState(false);
   const [focusCharacters, setFocusCharacters] = useState<string[]>([]);
   const [showSyncToast, setShowSyncToast] = useState(false);
+  const [showLanding, setShowLanding] = useState(!user.hasCompletedOnboarding);
 
   useEffect(() => {
     const timer = setInterval(() => {
         const loadedUser = getProfile();
         // Check if session expired or changed
-        if (loadedUser.isGuest && !user.isGuest) {
-             setUser(DEFAULT_USER); // Force logout in UI if storage changed
-        } else {
-             setUser(prev => {
-                if (prev.energy !== loadedUser.energy || prev.lastEnergyRefill !== loadedUser.lastEnergyRefill) {
-                    return loadedUser;
-                }
-                return prev;
-            });
-        }
+        // If loaded user has onboarding completed but current user doesn't (or vice versa), update
+        // Also check energy
+        setUser(prev => {
+            if (JSON.stringify(prev.energy) !== JSON.stringify(loadedUser.energy) || 
+                JSON.stringify(prev.lastEnergyRefill) !== JSON.stringify(loadedUser.lastEnergyRefill) ||
+                prev.isGuest !== loadedUser.isGuest ||
+                prev.hasCompletedOnboarding !== loadedUser.hasCompletedOnboarding) {
+                return loadedUser;
+            }
+            return prev;
+        });
     }, 60000);
 
     const loadedUser = getProfile();
     setUser(loadedUser);
+    setShowLanding(!loadedUser.hasCompletedOnboarding);
     
-    if (!loadedUser.isGuest && !loadedUser.currentLanguageCode) {
+    if (loadedUser.hasCompletedOnboarding && !loadedUser.currentLanguageCode) {
       setCurrentView('languages');
     }
 
@@ -54,6 +58,11 @@ const App: React.FC = () => {
         clearInterval(timer);
     }
   }, []);
+
+  // Update landing view visibility when user state changes
+  useEffect(() => {
+      setShowLanding(!user.hasCompletedOnboarding);
+  }, [user.hasCompletedOnboarding]);
 
   const handleUpdateUser = (updatedUser: UserProfile) => {
     setUser(updatedUser);
@@ -69,10 +78,18 @@ const App: React.FC = () => {
     }
   };
 
+  const handleContinueAsGuest = () => {
+      const updatedUser = { ...user, hasCompletedOnboarding: true };
+      setUser(updatedUser);
+      saveProfile(updatedUser); // Saves to Guest Storage
+      setCurrentView('languages'); // Direct them to pick a language
+  };
+
   const handleLogout = () => {
       logoutUser();
       setUser(DEFAULT_USER);
       setCurrentView('home');
+      setShowLanding(true);
   };
 
   const handleSelectLanguage = (code: string) => {
@@ -128,8 +145,8 @@ const App: React.FC = () => {
   };
 
   // Guest Check
-  if (user.isGuest) {
-    return <Landing onLogin={handleLogin} />;
+  if (showLanding) {
+    return <Landing user={user} onLogin={handleLogin} onContinueAsGuest={handleContinueAsGuest} />;
   }
 
   // View Routing
@@ -151,15 +168,14 @@ const App: React.FC = () => {
         return <LanguageSelection user={user} onSelectLanguage={handleSelectLanguage} />;
       case 'profile':
         return (
-            <div className="relative">
-                 <button onClick={handleLogout} className="absolute top-6 right-6 text-gray-400 hover:text-red-500 font-bold text-xs uppercase tracking-widest">Log Out</button>
-                 <Profile user={user} onUpdateUser={handleUpdateUser} />
-            </div>
+            <Profile user={user} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />
         );
       case 'leaderboard':
         return <Leaderboard user={user} />;
       case 'characters':
         return <CharactersView user={user} onStartLesson={handleStartCharacterLesson} />;
+      case 'settings':
+        return <SettingsView user={user} onUpdateUser={handleUpdateUser} />;
       case 'home':
       default:
         return (
@@ -180,7 +196,7 @@ const App: React.FC = () => {
           <span className="font-bold text-sm">Back online! Syncing progress...</span>
       </div>
 
-      <Navigation currentView={currentView} setView={setCurrentView} />
+      <Navigation currentView={currentView} setView={setCurrentView} userPreferences={user.preferences} />
 
       <main className="flex-1 h-full relative w-full max-w-4xl mx-auto bg-white md:shadow-xl md:my-4 md:rounded-2xl overflow-hidden border-gray-200 md:border">
           {renderView()}
