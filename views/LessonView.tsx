@@ -204,7 +204,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       const normalizedSpoken = spokenText.toLowerCase().replace(/[.,!?]/g, '').trim();
       const normalizedTarget = currentQ.correctAnswer.toLowerCase().replace(/[.,!?]/g, '').trim();
       isCorrect = normalizedSpoken === normalizedTarget || normalizedSpoken.includes(normalizedTarget);
-    } else if (currentQ.type === QuestionType.TRANSLATE) {
+    } else if (currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE) {
       // AI Validation for translation
       // First check strict equality to save API call
       const normalizedTyped = typedAnswer.toLowerCase().trim().replace(/[.,!?]/g, '');
@@ -386,7 +386,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   const themeBg = isPractice ? 'bg-purple-500' : 'bg-brand-green';
   const isSpeaking = currentQ.type === QuestionType.SPEAKING;
   const isListeningQ = currentQ.type === QuestionType.LISTENING;
-  const isTranslate = currentQ.type === QuestionType.TRANSLATE;
+  const isTranslate = currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE;
 
   // Determine button state
   let canCheck = false;
@@ -396,11 +396,17 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   return (
     <div className="flex flex-col h-full max-w-lg mx-auto bg-white sm:border-x border-gray-200 sm:shadow-lg min-h-screen relative">
-      {/* Offline Indicator - Now flows naturally so header can be sticky properly */}
+      {/* Offline Indicator - Enhanced visibility */}
       {isOfflineMode && (
-          <div className="bg-gray-800 text-white text-xs text-center py-1">
-              Offline Mode
+        <div className="bg-gray-900 text-white py-3 px-4 flex flex-col sm:flex-row items-center justify-center gap-3 animate-in slide-in-from-top z-30 shadow-md">
+          <div className="flex items-center gap-2 text-amber-400 font-black uppercase tracking-widest text-xs">
+             <WifiOff size={16} />
+             <span>Offline Mode</span>
           </div>
+          <span className="text-xs font-bold text-gray-300 text-center sm:text-left">
+             Smart checking and speech features are unavailable.
+          </span>
+        </div>
       )}
 
       {/* Header - Sticky and visually enhanced */}
@@ -430,7 +436,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         
         <div className="mb-6">
            {currentQ.type === QuestionType.FILL_BLANK && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Fill in the blank</span>}
-           {currentQ.type === QuestionType.TRANSLATE && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Translate this sentence</span>}
+           {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE) && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Translate this sentence</span>}
            {currentQ.type === QuestionType.LISTENING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Listen and select</span>}
            {currentQ.type === QuestionType.SPEAKING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Speak this sentence</span>}
            {currentQ.type === QuestionType.MULTIPLE_CHOICE && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Select the correct answer</span>}
@@ -477,7 +483,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         </div>
 
         {/* Hint Section */}
-        {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.FILL_BLANK) && (
+        {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE || currentQ.type === QuestionType.FILL_BLANK) && (
             <div className="mb-6">
                 {!showHint ? (
                     <button 
@@ -499,7 +505,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                                </span>
                              )}
                              <span className="text-sm font-bold leading-tight">
-                                {currentQ.type === QuestionType.TRANSLATE 
+                                {currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE
                                     ? `Try using "${currentQ.correctAnswer.split(' ')[0]}"` 
                                     : `Starts with "${currentQ.correctAnswer.charAt(0)}"`}
                              </span>

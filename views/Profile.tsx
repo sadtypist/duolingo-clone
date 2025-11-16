@@ -3,7 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
 import { LANGUAGES, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus } from 'lucide-react';
+import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus, Calendar, AlertCircle } from 'lucide-react';
 import { saveProfile } from '../services/storageService';
 
 interface ProfileProps {
@@ -68,6 +68,12 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
   
   // Language Score Calculation (Mock formula)
   const languageScore = Math.floor((totalXP * 0.5) + (totalLessons * 10) + (activeLanguages * 50));
+
+  // Format Date Helper
+  const formatDate = (dateStr?: string) => {
+      if (!dateStr) return 'Never';
+      return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
 
   return (
     <div className="h-full overflow-y-auto bg-white">
@@ -179,6 +185,30 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
           </div>
         </div>
 
+        {/* Streak Section */}
+        <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 mb-6 flex items-center justify-between relative overflow-hidden">
+            <div className="relative z-10">
+                <h2 className="text-gray-400 font-extrabold text-xs uppercase tracking-widest mb-2">Daily Streak</h2>
+                <div className="flex items-center gap-4">
+                    <div className={`p-3 rounded-2xl ${user.streak > 0 ? 'bg-orange-100 text-orange-500' : 'bg-gray-100 text-gray-400'}`}>
+                        <Flame size={32} fill={user.streak > 0 ? "currentColor" : "none"} className={user.streak > 0 ? "animate-pulse" : ""} />
+                    </div>
+                    <div>
+                         <div className="text-4xl font-black text-gray-800 leading-none">{user.streak}</div>
+                         <div className="text-xs font-bold text-gray-400">days in a row</div>
+                    </div>
+                </div>
+            </div>
+            <div className="relative z-10 text-right max-w-[180px] hidden sm:block">
+                 <p className="text-sm font-bold text-gray-600 leading-snug">
+                    {user.streak > 0 
+                        ? "You're on fire! Don't stop now!" 
+                        : "Complete a lesson to start your streak!"}
+                 </p>
+            </div>
+             <Flame size={160} className={`absolute -bottom-10 -right-10 z-0 transform rotate-12 opacity-10 ${user.streak > 0 ? 'text-orange-500' : 'text-gray-400'}`} />
+        </div>
+
         {/* Global Stats */}
         <div className="bg-brand-blue/10 border-2 border-brand-blue/20 rounded-2xl p-6 mb-8 flex items-center justify-between">
            <div>
@@ -228,17 +258,25 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
         {/* Language Progress List */}
         <h2 className="text-xl font-extrabold text-gray-700 mb-4">My Languages</h2>
         <div className="space-y-3">
-          {Object.values(user.progress).sort((a: LanguageProgress, b: LanguageProgress) => b.xp - a.xp).map((prog: LanguageProgress) => {
+          {(Object.values(user.progress) as LanguageProgress[]).sort((a, b) => {
+              // Sort by lastPlayed if available, else XP
+              if (a.lastPlayed && b.lastPlayed) return new Date(b.lastPlayed).getTime() - new Date(a.lastPlayed).getTime();
+              return b.xp - a.xp;
+          }).map((prog) => {
             const lang = LANGUAGES.find(l => l.code === prog.languageCode);
             if (!lang) return null;
+            
+            const xpForCurrentLevel = prog.xp % 100;
+            const hasWeakness = prog.weakAreas && prog.weakAreas.length > 0;
+
             return (
-              <div key={prog.languageCode} className="bg-white border-2 border-gray-200 rounded-2xl p-4">
+              <div key={prog.languageCode} className="bg-white border-2 border-gray-200 rounded-2xl p-4 relative overflow-hidden transition-all hover:border-gray-300">
                  <div className="flex items-center justify-between mb-3">
-                   <div className="flex items-center gap-4">
-                     <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center text-2xl relative">
+                   <div className="flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center text-lg">
                         {lang.countryCode ? (
                           <img 
-                            src={`https://flagcdn.com/w160/${lang.countryCode.toLowerCase()}.png`}
+                            src={`https://flagcdn.com/w80/${lang.countryCode.toLowerCase()}.png`}
                             alt={lang.name}
                             className="w-full h-full object-cover"
                           />
@@ -247,24 +285,52 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                         )}
                      </div>
                      <div>
-                       <div className="font-bold text-gray-700">{lang.name}</div>
-                       <div className="text-xs text-gray-400 font-bold">Lvl {prog.level} • {prog.xp} XP</div>
+                       <div className="font-extrabold text-gray-800 flex items-center gap-2">
+                          {lang.name}
+                          {hasWeakness && (
+                              <div className="bg-red-100 text-red-600 p-1 rounded-full" title="Weak areas detected">
+                                  <AlertCircle size={12} strokeWidth={3} />
+                              </div>
+                          )}
+                       </div>
+                       <div className="text-xs text-gray-400 font-bold flex items-center gap-1">
+                          <Calendar size={10} />
+                          {prog.lastPlayed ? `Last played ${formatDate(prog.lastPlayed)}` : 'Not played yet'}
+                       </div>
                      </div>
                    </div>
+                   
+                   <div className="text-right">
+                      <div className="text-xs font-black text-gray-400 uppercase tracking-wider">Level</div>
+                      <div className="text-xl font-black text-brand-blue leading-none">{prog.level}</div>
+                   </div>
                  </div>
-                 <div className="w-full bg-gray-200 rounded-full h-2.5 mb-2">
-                    <div 
-                      className="bg-brand-green h-2.5 rounded-full" 
-                      style={{ width: `${Math.min((prog.xp % 100), 100)}%` }}
-                    ></div>
+                 
+                 {/* Progress Bar Row */}
+                 <div className="mb-1">
+                     <div className="flex justify-between text-[10px] font-bold text-gray-400 mb-1 uppercase tracking-wide">
+                        <span>Progress to Lvl {prog.level + 1}</span>
+                        <span>{xpForCurrentLevel} / 100 XP</span>
+                     </div>
+                     <div className="w-full bg-gray-100 rounded-full h-3 overflow-hidden">
+                        <div 
+                          className="bg-brand-green h-full rounded-full transition-all duration-500" 
+                          style={{ width: `${(xpForCurrentLevel / 100) * 100}%` }}
+                        ></div>
+                     </div>
                  </div>
-                 {prog.weakAreas && prog.weakAreas.length > 0 && (
-                   <div className="flex gap-2 flex-wrap">
-                      {prog.weakAreas.map(area => (
-                        <span key={area} className="text-[10px] bg-red-100 text-red-600 px-2 py-0.5 rounded-md font-bold uppercase">
-                          Needs work: {area}
-                        </span>
-                      ))}
+
+                 {/* Weak Areas Footer (Subtle) */}
+                 {hasWeakness && (
+                   <div className="mt-3 pt-2 border-t border-gray-100 flex items-center gap-2">
+                      <span className="text-[10px] font-bold text-red-500 uppercase tracking-wider">Review Needed:</span>
+                      <div className="flex gap-1 flex-wrap">
+                         {prog.weakAreas.map((area, i) => (
+                             <span key={i} className="text-[10px] text-gray-500 bg-gray-100 px-1.5 py-0.5 rounded font-semibold">
+                                {area}
+                             </span>
+                         ))}
+                      </div>
                    </div>
                  )}
               </div>

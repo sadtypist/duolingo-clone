@@ -294,7 +294,8 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
     xp: newXp,
     level: newLevel,
     lessonsCompleted: currentProgress.lessonsCompleted + lessonsIncrement,
-    weakAreas: newWeakAreas
+    weakAreas: newWeakAreas,
+    lastPlayed: new Date().toISOString()
   };
 
   const isFirstAction = profile.dailyGoals.every(g => g.current === 0);

@@ -65,9 +65,10 @@ export const generateLesson = async (
   Generate exactly 5 questions with a mix of these types:
   1. MULTIPLE_CHOICE: Standard grammar/vocab question.
   2. FILL_BLANK: A sentence with a missing word indicated by '____'. Options are words to fill it.
-  3. TRANSLATE: A sentence in English (or target language) to translate. Options are ignored for this type in the UI, but provide 1 correct string in 'correctAnswer'.
-  4. LISTENING: 'questionText' is the phrase the user will hear (in ${languageName}). 'options' are transcriptions or translations.
-  5. SPEAKING: 'questionText' is the phrase the user must read aloud (in ${languageName}). 'correctAnswer' is the text they must say. Options can be ignored or empty.
+  3. TRANSLATE: A short phrase or basic sentence in English (or target language) to translate.
+  4. SENTENCE_TRANSLATE: A full, slightly more complex sentence in the target language to translate to English (or vice versa).
+  5. LISTENING: 'questionText' is the phrase the user will hear (in ${languageName}). 'options' are transcriptions or translations.
+  6. SPEAKING: 'questionText' is the phrase the user must read aloud (in ${languageName}). 'correctAnswer' is the text they must say. Options can be ignored or empty.
 
   IMPORTANT: 
   - Ensure 'questionText' is clear. 
@@ -96,7 +97,7 @@ export const generateLesson = async (
                   id: { type: Type.INTEGER },
                   type: { 
                     type: Type.STRING, 
-                    enum: ['MULTIPLE_CHOICE', 'FILL_BLANK', 'TRANSLATE', 'LISTENING', 'SPEAKING'] 
+                    enum: ['MULTIPLE_CHOICE', 'FILL_BLANK', 'TRANSLATE', 'SENTENCE_TRANSLATE', 'LISTENING', 'SPEAKING'] 
                   },
                   questionText: { type: Type.STRING },
                   options: { 

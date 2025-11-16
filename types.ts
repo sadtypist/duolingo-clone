@@ -12,6 +12,7 @@ export interface LanguageProgress {
   level: number;
   lessonsCompleted: number;
   weakAreas: string[]; // Topics user struggles with
+  lastPlayed?: string; // ISO Date string
 }
 
 export interface Achievement {
@@ -79,7 +80,8 @@ export enum QuestionType {
   TRANSLATE = 'TRANSLATE',
   FILL_BLANK = 'FILL_BLANK',
   LISTENING = 'LISTENING',
-  SPEAKING = 'SPEAKING'
+  SPEAKING = 'SPEAKING',
+  SENTENCE_TRANSLATE = 'SENTENCE_TRANSLATE'
 }
 
 export interface QuizOption {

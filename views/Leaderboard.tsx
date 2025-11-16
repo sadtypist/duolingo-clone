@@ -113,7 +113,7 @@ export const Leaderboard: React.FC<LeaderboardProps> = ({ user }) => {
 
       {/* League Info Modal */}
       {showLeagueInfo && (
-        <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in zoom-in duration-200">
+        <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-3xl w-full max-w-md max-h-[80%] flex flex-col shadow-2xl">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center">
                <h2 className="text-xl font-black text-gray-800">League Tiers</h2>
