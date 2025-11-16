@@ -3,6 +3,7 @@ export interface Language {
   code: string;
   name: string;
   flag: string;
+  countryCode?: string; // ISO 3166-1 alpha-2 code for flag images (e.g., 'us', 'gb', 'jp')
 }
 
 export interface LanguageProgress {
@@ -33,15 +34,34 @@ export interface DailyGoal {
 
 export interface UserProfile {
   id: string;
+  email?: string; // Auth
+  password?: string; // Auth (Simulated)
+  username?: string; // Display ID
   name: string;
   avatar: string; // base64 or emoji
   joinDate: string;
   lastActiveDate: string; // YYYY-MM-DD
   streak: number;
+  energy: number; // Current hearts (0-5)
+  lastEnergyRefill: string; // ISO Timestamp of last energy calc
   currentLanguageCode: string | null;
+  currentLeague: string; // e.g., 'Bronze', 'Silver'
   progress: Record<string, LanguageProgress>; // Map languageCode to progress
   achievements: string[]; // IDs of unlocked achievements
   dailyGoals: DailyGoal[];
+  isGuest?: boolean; // New flag for auth flow
+}
+
+export interface CharacterSymbol {
+  symbol: string;
+  romanization: string;
+  example?: string;
+}
+
+export interface CharacterGroup {
+  id: string;
+  name: string;
+  characters: CharacterSymbol[];
 }
 
 export enum QuestionType {

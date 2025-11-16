@@ -11,7 +11,14 @@ if (API_KEY) {
   ai = new GoogleGenAI({ apiKey: API_KEY });
 }
 
-export const generateLesson = async (languageName: string, userLevel: number, weakAreas: string[] = [], isPractice: boolean = false): Promise<Lesson | null> => {
+export const generateLesson = async (
+  languageName: string, 
+  userLevel: number, 
+  weakAreas: string[] = [], 
+  isPractice: boolean = false,
+  focusCharacters: string[] = [],
+  difficulty: 'Easy' | 'Medium' | 'Hard' = 'Medium'
+): Promise<Lesson | null> => {
   if (!ai) {
     console.error("Gemini API Key not found");
     return null;
@@ -19,7 +26,15 @@ export const generateLesson = async (languageName: string, userLevel: number, we
 
   let adaptiveContext = "";
   
-  if (isPractice) {
+  if (focusCharacters.length > 0) {
+    adaptiveContext = `This is a CHARACTER focused lesson. The user is learning these specific symbols/letters: ${focusCharacters.join(', ')}. 
+    Create questions that test ONLY these characters.
+    Examples of valid questions: 
+    - "Which character is [sound]?" (Options are characters)
+    - "What sound does [character] make?" (Options are romanization)
+    - "Select the matching character for [sound]"
+    `;
+  } else if (isPractice) {
      adaptiveContext = `This is a PRACTICE session. The user has struggled with: ${weakAreas.join(', ')}. Generate questions SPECIFICALLY testing these topics.`;
   } else {
      adaptiveContext = weakAreas.length > 0 
@@ -27,13 +42,21 @@ export const generateLesson = async (languageName: string, userLevel: number, we
       : `The user is doing well. Introduce a mix of vocabulary and grammar appropriate for level ${userLevel}.`;
   }
 
-  const prompt = `Create a ${isPractice ? 'practice review' : 'dynamic lesson'} for learning ${languageName} (Level ${userLevel}/10).
+  let difficultyInstruction = "";
+  switch(difficulty) {
+      case 'Easy': difficultyInstruction = "Difficulty: EASY. Use simple vocabulary, clear context, shorter sentences, and avoid complex grammar exceptions."; break;
+      case 'Medium': difficultyInstruction = "Difficulty: MEDIUM. Standard complexity for this proficiency level. Mix common and slightly challenging concepts."; break;
+      case 'Hard': difficultyInstruction = "Difficulty: HARD. Challenge the user with complex sentence structures, advanced vocabulary, faster implied speech context, and trickier distractors."; break;
+  }
+
+  const prompt = `Create a ${difficulty} ${isPractice ? 'practice review' : 'dynamic lesson'} for learning ${languageName} (Level ${userLevel}/10).
   ${adaptiveContext}
+  ${difficultyInstruction}
   
   Generate exactly 5 questions with a mix of these types:
   1. MULTIPLE_CHOICE: Standard grammar/vocab question.
   2. FILL_BLANK: A sentence with a missing word indicated by '____'. Options are words to fill it.
-  3. TRANSLATE: A sentence in English (or target language) to translate. Options are the translations.
+  3. TRANSLATE: A sentence in English (or target language) to translate. Options are ignored for this type in the UI, but provide 1 correct string in 'correctAnswer'.
   4. LISTENING: 'questionText' is the phrase the user will hear (in ${languageName}). 'options' are transcriptions or translations.
   5. SPEAKING: 'questionText' is the phrase the user must read aloud (in ${languageName}). 'correctAnswer' is the text they must say. Options can be ignored or empty.
 
@@ -107,5 +130,49 @@ export const generateLesson = async (languageName: string, userLevel: number, we
         }
       ]
     };
+  }
+};
+
+export const validateTranslation = async (originalText: string, userTranslation: string, correctAnswer: string): Promise<boolean> => {
+  if (!ai) return false;
+  
+  // If exact match, don't waste tokens
+  if (userTranslation.toLowerCase().trim() === correctAnswer.toLowerCase().trim()) {
+    return true;
+  }
+
+  const prompt = `
+    You are a language teacher. 
+    Question: Translate "${originalText}" to the target language.
+    Expected Answer: "${correctAnswer}"
+    Student Answer: "${userTranslation}"
+    
+    Is the Student Answer a valid, correct translation? It might be a synonym or slightly different phrasing but still correct.
+    Respond with JSON: { "isCorrect": boolean }
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: 'gemini-2.5-flash',
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            isCorrect: { type: Type.BOOLEAN }
+          },
+          required: ['isCorrect']
+        }
+      }
+    });
+
+    const text = response.text;
+    if (!text) return false;
+    const result = JSON.parse(text);
+    return result.isCorrect;
+  } catch (e) {
+    console.error("Validation error", e);
+    return false;
   }
 };

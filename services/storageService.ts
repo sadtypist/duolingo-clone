@@ -1,28 +1,70 @@
 
 import { UserProfile, LanguageProgress, DailyGoal, OfflineLesson } from '../types';
-import { DEFAULT_USER, ACHIEVEMENTS, DEFAULT_GOALS } from '../constants';
+import { DEFAULT_USER, ACHIEVEMENTS, DEFAULT_GOALS, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
 
-const STORAGE_KEY = 'lingoquest_user_v2';
+// Keys
+const USERS_KEY = 'lingoquest_users_db'; // Map of email -> UserProfile
+const SESSION_KEY = 'lingoquest_current_session'; // Current user email
 const OFFLINE_LESSONS_KEY = 'lingoquest_offline_lessons';
 
 const getTodayStr = () => new Date().toISOString().split('T')[0];
 
+// Helper to get all users
+const getUsersMap = (): Record<string, UserProfile> => {
+  try {
+    const stored = localStorage.getItem(USERS_KEY);
+    return stored ? JSON.parse(stored) : {};
+  } catch (e) {
+    return {};
+  }
+};
+
+// Helper to save all users
+const saveUsersMap = (map: Record<string, UserProfile>) => {
+  localStorage.setItem(USERS_KEY, JSON.stringify(map));
+};
+
 export const getProfile = (): UserProfile => {
   try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    let profile: UserProfile = DEFAULT_USER;
+    const sessionEmail = localStorage.getItem(SESSION_KEY);
+    if (!sessionEmail) return DEFAULT_USER;
 
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      profile = { ...DEFAULT_USER, ...parsed }; 
+    const users = getUsersMap();
+    const user = users[sessionEmail];
+
+    if (!user) {
+      // Session invalid
+      localStorage.removeItem(SESSION_KEY);
+      return DEFAULT_USER;
     }
+
+    let profile = { ...DEFAULT_USER, ...user, isGuest: false }; 
+
+    // --- Energy Regeneration Logic ---
+    if (profile.energy < MAX_ENERGY) {
+      const now = Date.now();
+      const lastRefill = new Date(profile.lastEnergyRefill).getTime();
+      const diff = now - lastRefill;
+
+      if (diff >= ENERGY_REGEN_MS) {
+        const energyToRestore = Math.floor(diff / ENERGY_REGEN_MS);
+        const newEnergy = Math.min(MAX_ENERGY, profile.energy + energyToRestore);
+        
+        if (newEnergy > profile.energy) {
+             const remainder = diff % ENERGY_REGEN_MS;
+             const newRefillTime = new Date(now - remainder).toISOString();
+             
+             profile.energy = newEnergy;
+             profile.lastEnergyRefill = newRefillTime;
+             saveProfile(profile); // Save immediately
+        }
+      }
+    }
+    // ---------------------------------
 
     // Check for new day logic
     const today = getTodayStr();
     if (profile.lastActiveDate !== today) {
-      // It's a new day (or skipped days)
-      
-      // Check Streak
       const lastDate = new Date(profile.lastActiveDate);
       const curDate = new Date(today);
       const diffTime = Math.abs(curDate.getTime() - lastDate.getTime());
@@ -30,12 +72,8 @@ export const getProfile = (): UserProfile => {
 
       if (diffDays > 1) {
         profile.streak = 0; // Broken streak
-      } else if (diffDays === 1) {
-        // Kept streak, logic handled when they actually complete a lesson usually, 
-        // but we just maintain the count here. Actual increment happens on activity.
-      }
+      } 
       
-      // Reset Daily Goals
       profile.dailyGoals = DEFAULT_GOALS.map(g => ({ ...g, current: 0, completed: false }));
       profile.lastActiveDate = today;
       saveProfile(profile);
@@ -50,10 +88,73 @@ export const getProfile = (): UserProfile => {
 
 export const saveProfile = (profile: UserProfile): void => {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(profile));
+    if (profile.isGuest || !profile.email) return; // Don't save guest to DB
+
+    const users = getUsersMap();
+    users[profile.email] = profile;
+    saveUsersMap(users);
   } catch (e) {
     console.error("Failed to save profile", e);
   }
+};
+
+// --- AUTH METHODS ---
+
+export const registerUser = (email: string, password: string, name: string, username: string, avatar: string): { success: boolean, message?: string, user?: UserProfile } => {
+    const users = getUsersMap();
+    if (users[email]) {
+        return { success: false, message: 'Email already exists' };
+    }
+
+    const newUser: UserProfile = {
+        ...DEFAULT_USER,
+        id: `user_${Date.now()}`,
+        email,
+        password, // In a real app, hash this!
+        name,
+        username,
+        avatar,
+        isGuest: false,
+        joinDate: new Date().toISOString(),
+    };
+
+    users[email] = newUser;
+    saveUsersMap(users);
+    localStorage.setItem(SESSION_KEY, email);
+    
+    return { success: true, user: newUser };
+};
+
+export const loginUser = (email: string, password: string): { success: boolean, message?: string, user?: UserProfile } => {
+    const users = getUsersMap();
+    const user = users[email];
+
+    if (!user || user.password !== password) {
+        return { success: false, message: 'Invalid email or password' };
+    }
+
+    localStorage.setItem(SESSION_KEY, email);
+    return { success: true, user };
+};
+
+export const logoutUser = () => {
+    localStorage.removeItem(SESSION_KEY);
+};
+
+// -------------------
+
+export const consumeEnergy = (): UserProfile | null => {
+    const profile = getProfile();
+    if (profile.energy > 0) {
+        profile.energy -= 1;
+        // If we were full, start the timer
+        if (profile.energy === MAX_ENERGY - 1) {
+            profile.lastEnergyRefill = new Date().toISOString();
+        }
+        saveProfile(profile);
+        return profile;
+    }
+    return null;
 };
 
 // --- Offline Lesson Management ---
@@ -62,7 +163,6 @@ export const saveOfflineLesson = (lesson: OfflineLesson): void => {
   try {
     const existingStr = localStorage.getItem(OFFLINE_LESSONS_KEY);
     const existing: OfflineLesson[] = existingStr ? JSON.parse(existingStr) : [];
-    // Limit to 10 offline lessons to save space
     if (existing.length >= 10) existing.shift();
     existing.push(lesson);
     localStorage.setItem(OFFLINE_LESSONS_KEY, JSON.stringify(existing));
@@ -92,7 +192,7 @@ export const popOfflineLesson = (langCode: string): OfflineLesson | null => {
     if (index === -1) return null;
 
     const lesson = existing[index];
-    existing.splice(index, 1); // Remove from storage once used (consumed)
+    existing.splice(index, 1);
     localStorage.setItem(OFFLINE_LESSONS_KEY, JSON.stringify(existing));
     return lesson;
   } catch (e) {
@@ -108,15 +208,14 @@ interface LessonResult {
   xpGained: number;
   questionsTotal: number;
   questionsCorrect: number;
-  weakTopicsDetected: string[]; // Topics user missed
-  strongTopicsDetected: string[]; // Topics user aced
+  weakTopicsDetected: string[];
+  strongTopicsDetected: string[];
 }
 
 export const completeLesson = (result: LessonResult, isPractice: boolean = false): { profile: UserProfile; newAchievements: string[] } => {
   const profile = getProfile();
   const { langCode, xpGained, weakTopicsDetected, strongTopicsDetected } = result;
 
-  // 1. Update Language Progress (Adaptive Learning)
   const currentProgress = profile.progress[langCode] || {
     languageCode: langCode,
     xp: 0,
@@ -125,20 +224,14 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
     weakAreas: []
   };
 
-  // Merge weak areas: add new ones, remove fixed ones
   let newWeakAreas = [...(currentProgress.weakAreas || [])];
-  // Add detected weak topics if not present
   weakTopicsDetected.forEach(topic => {
     if (topic && !newWeakAreas.includes(topic)) newWeakAreas.push(topic);
   });
-  // Remove strong topics
   newWeakAreas = newWeakAreas.filter(topic => !strongTopicsDetected.includes(topic));
 
   const newXp = currentProgress.xp + xpGained;
-  // Update level based on XP
   const newLevel = Math.floor(newXp / 100) + 1;
-  
-  // Only increment lessons completed if it is NOT a practice session
   const lessonsIncrement = isPractice ? 0 : 1;
 
   const updatedProgress: LanguageProgress = {
@@ -149,17 +242,15 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
     weakAreas: newWeakAreas
   };
 
-  // 2. Update Streak (only increment if first lesson of the day)
   const isFirstAction = profile.dailyGoals.every(g => g.current === 0);
   if (isFirstAction) {
     profile.streak += 1;
   }
 
-  // 3. Update Daily Goals
   const updatedGoals = profile.dailyGoals.map(goal => {
     let newCurrent = goal.current;
     if (goal.type === 'XP') newCurrent += xpGained;
-    if (goal.type === 'LESSONS') newCurrent += 1; // Practice counts towards daily goals? Let's say yes for engagement.
+    if (goal.type === 'LESSONS') newCurrent += 1;
     
     return {
       ...goal,
@@ -168,13 +259,10 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
     };
   });
 
-  // 4. Check Achievements
   const unlockedIds: string[] = [];
-  const totalXP = Object.values(profile.progress).reduce((acc, p) => acc + p.xp, 0) + xpGained; // approx
+  const totalXP = Object.values(profile.progress).reduce((acc, p) => acc + p.xp, 0) + xpGained; 
   const totalLessons = Object.values(profile.progress).reduce((acc, p) => acc + p.lessonsCompleted, 0) + lessonsIncrement;
   const languageCount = Object.keys(profile.progress).length;
-  
-  // Calculate Language Score (Logic mirrored from Profile.tsx)
   const score = Math.floor((totalXP * 0.5) + (totalLessons * 10) + (languageCount * 50));
 
   ACHIEVEMENTS.forEach(ach => {
@@ -194,10 +282,9 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
     }
   });
 
-  // Construct Final Profile
   const updatedProfile: UserProfile = {
     ...profile,
-    streak: profile.streak, // already updated above if needed
+    streak: profile.streak,
     progress: {
       ...profile.progress,
       [langCode]: updatedProgress

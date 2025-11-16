@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Language, LanguageProgress } from '../types';
 import { CheckCircle } from 'lucide-react';
@@ -27,8 +28,16 @@ export const LanguageCard: React.FC<LanguageCardProps> = ({ language, progress, 
         </div>
       )}
       
-      <div className="text-5xl mb-3 shadow-sm rounded-full overflow-hidden w-16 h-16 flex items-center justify-center bg-gray-100">
-        {language.flag}
+      <div className="text-5xl mb-3 shadow-sm rounded-full overflow-hidden w-16 h-16 flex items-center justify-center bg-gray-100 relative">
+        {language.countryCode ? (
+          <img 
+            src={`https://flagcdn.com/w160/${language.countryCode.toLowerCase()}.png`}
+            alt={language.name}
+            className="w-full h-full object-cover"
+          />
+        ) : (
+           language.flag
+        )}
       </div>
       
       <h3 className="font-bold text-gray-700">{language.name}</h3>

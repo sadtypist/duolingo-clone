@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, BookOpen, User, Settings, Globe } from 'lucide-react';
+import { Home, User, Globe, Trophy, BookA } from 'lucide-react';
 
 interface NavigationProps {
   currentView: string;
@@ -10,6 +10,8 @@ interface NavigationProps {
 export const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) => {
   const navItems = [
     { id: 'home', icon: Home, label: 'Learn' },
+    { id: 'characters', icon: BookA, label: 'Characters' },
+    { id: 'leaderboard', icon: Trophy, label: 'Leaderboard' },
     { id: 'languages', icon: Globe, label: 'Languages' },
     { id: 'profile', icon: User, label: 'Profile' },
   ];
@@ -33,9 +35,9 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, setView }) 
               }`}
             >
               <div className={`p-1 rounded-lg transition-all ${isActive ? 'bg-blue-50' : ''}`}>
-                <Icon size={28} strokeWidth={isActive ? 2.5 : 2} />
+                <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
               </div>
-              <span className="text-xs font-bold uppercase">{item.label}</span>
+              <span className="text-[10px] font-bold uppercase">{item.label}</span>
             </button>
           );
         })}

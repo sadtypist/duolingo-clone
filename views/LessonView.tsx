@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Lesson, QuestionType } from '../types';
-import { generateLesson } from '../services/geminiService';
+import { generateLesson, validateTranslation } from '../services/geminiService';
 import { completeLesson, popOfflineLesson } from '../services/storageService';
 import { LANGUAGES, XP_PER_LESSON, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff } from 'lucide-react';
+import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame } from 'lucide-react';
 
 // Polyfill for SpeechRecognition types
 declare global {
@@ -20,18 +20,23 @@ interface LessonViewProps {
   onComplete: (updatedUser: UserProfile) => void;
   onExit: () => void;
   isPractice?: boolean;
+  focusCharacters?: string[];
 }
 
-export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit, isPractice = false }) => {
+export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit, isPractice = false, focusCharacters = [] }) => {
+  const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | null>(null);
   const [loading, setLoading] = useState(true);
   const [lesson, setLesson] = useState<Lesson | null>(null);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [showQuitModal, setShowQuitModal] = useState(false);
   
   // User Input States
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
   const [spokenText, setSpokenText] = useState<string>('');
+  const [typedAnswer, setTypedAnswer] = useState<string>('');
   const [isListening, setIsListening] = useState(false);
+  const [isChecking, setIsChecking] = useState(false);
   
   const [feedback, setFeedback] = useState<'correct' | 'incorrect' | null>(null);
   
@@ -48,9 +53,10 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   useEffect(() => {
     const loadLesson = async () => {
         if (!currentLang) return;
+        if (!difficulty) return; // Wait for difficulty selection
 
-        // Check Offline Status
-        if (!navigator.onLine) {
+        // Check Offline Status (skip for character lessons as they are dynamic/short usually, or fallback)
+        if (!navigator.onLine && focusCharacters.length === 0) {
             const offlineLesson = popOfflineLesson(currentLang.code);
             if (offlineLesson) {
                 setLesson(offlineLesson);
@@ -58,7 +64,6 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                 setLoading(false);
                 return;
             }
-            // If offline and no lesson found, show error in render
             setLoading(false);
             setIsOfflineMode(true);
             return;
@@ -69,19 +74,29 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         const weakAreas = progress?.weakAreas || [];
         
         try {
-          const newLesson = await generateLesson(currentLang.name, userLevel, weakAreas, isPractice);
+          const newLesson = await generateLesson(
+            currentLang.name, 
+            userLevel, 
+            weakAreas, 
+            isPractice, 
+            focusCharacters,
+            difficulty
+          );
           setLesson(newLesson);
         } catch (e) {
           // Fallback if API fails even if navigator says online
           const offlineLesson = popOfflineLesson(currentLang.code);
-          if (offlineLesson) {
+          if (offlineLesson && focusCharacters.length === 0) {
              setLesson(offlineLesson);
              setIsOfflineMode(true);
           }
         }
         setLoading(false);
     };
-    loadLesson();
+    
+    if (difficulty) {
+       loadLesson();
+    }
 
     return () => {
       if (recognitionRef.current) {
@@ -89,14 +104,18 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       }
       window.speechSynthesis.cancel();
     };
-  }, [currentLang, isPractice]);
+  }, [currentLang, isPractice, focusCharacters, difficulty]);
 
   // TTS Helper
   const speak = (text: string, langCode: string = 'en-US') => {
     if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel(); // Stop previous
-    const utterance = new SpeechSynthesisUtterance(text);
-    // Simple mapping attempt, fallback to generic lang code
+    
+    // Sanitize text for better speech (e.g. underscores)
+    // Replaces "____" with "blank"
+    const cleanText = text.replace(/_+/g, ' blank ');
+    
+    const utterance = new SpeechSynthesisUtterance(cleanText);
     utterance.lang = langCode; 
     utterance.rate = 0.9;
     window.speechSynthesis.speak(utterance);
@@ -138,8 +157,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     recognition.start();
   };
 
-  const handleCheck = () => {
+  const handleCheck = async () => {
     if (!lesson) return;
+    setIsChecking(true);
     
     const currentQ = lesson.questions[currentQuestionIndex];
     const topic = currentQ.topic || 'General';
@@ -150,6 +170,21 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       const normalizedSpoken = spokenText.toLowerCase().replace(/[.,!?]/g, '').trim();
       const normalizedTarget = currentQ.correctAnswer.toLowerCase().replace(/[.,!?]/g, '').trim();
       isCorrect = normalizedSpoken === normalizedTarget || normalizedSpoken.includes(normalizedTarget);
+    } else if (currentQ.type === QuestionType.TRANSLATE) {
+      // AI Validation for translation
+      // First check strict equality to save API call
+      const normalizedTyped = typedAnswer.toLowerCase().trim().replace(/[.,!?]/g, '');
+      const normalizedTarget = currentQ.correctAnswer.toLowerCase().trim().replace(/[.,!?]/g, '');
+      
+      if (normalizedTyped === normalizedTarget) {
+        isCorrect = true;
+      } else if (!isOfflineMode) {
+        // Use AI to validate
+        isCorrect = await validateTranslation(currentQ.questionText, typedAnswer, currentQ.correctAnswer);
+      } else {
+        // Strict fallback if offline
+        isCorrect = false; 
+      }
     } else {
       isCorrect = selectedOption === currentQ.correctAnswer;
     }
@@ -158,12 +193,12 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       setFeedback('correct');
       setCorrectCount(prev => prev + 1);
       setCorrectQuestions(prev => [...prev, topic]);
-      // Positive sound
       playSuccessSound();
     } else {
       setFeedback('incorrect');
       setIncorrectQuestions(prev => [...prev, topic]);
     }
+    setIsChecking(false);
   };
   
   const playSuccessSound = () => {
@@ -178,7 +213,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     setFeedback(null);
     setSelectedOption(null);
     setSpokenText('');
+    setTypedAnswer('');
     setIsListening(false);
+    setIsChecking(false);
     window.speechSynthesis.cancel();
 
     if (currentQuestionIndex < lesson.questions.length - 1) {
@@ -218,13 +255,57 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   if (!currentLang) return <div className="p-4">No language selected</div>;
 
+  // DIFFICULTY SELECTION SCREEN
+  if (!difficulty) {
+      return (
+        <div className="flex flex-col h-full max-w-lg mx-auto bg-white sm:border-x border-gray-200 sm:shadow-lg min-h-screen p-6">
+             <div className="flex items-center mb-8">
+                <button onClick={onExit} className="text-gray-400 hover:text-gray-600 transition-colors p-2 -ml-2 rounded-full hover:bg-gray-100">
+                  <X size={24} />
+                </button>
+                <h1 className="flex-1 text-center font-extrabold text-xl text-gray-700 mr-8">New Lesson</h1>
+             </div>
+
+             <div className="flex-1 flex flex-col justify-center space-y-4 pb-16">
+                <h2 className="text-center text-2xl font-black text-gray-800 mb-6">Choose difficulty</h2>
+                
+                <button onClick={() => setDifficulty('Easy')} className="group relative p-6 rounded-3xl border-b-4 border-brand-green bg-green-50 hover:bg-brand-green active:border-b-0 active:translate-y-1 transition-all">
+                   <div className="flex items-center justify-between mb-2">
+                      <span className="text-xl font-black text-brand-green-dark group-hover:text-white uppercase tracking-wide">Easy</span>
+                      <Feather className="text-brand-green group-hover:text-white" size={32} strokeWidth={2.5} />
+                   </div>
+                   <p className="text-sm font-bold text-gray-500 group-hover:text-green-100 text-left">Relaxed pace with simple concepts.</p>
+                </button>
+
+                <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-blue-50 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
+                   <div className="flex items-center justify-between mb-2">
+                       <span className="text-xl font-black text-brand-blue-dark group-hover:text-white uppercase tracking-wide">Medium</span>
+                       <Target className="text-brand-blue group-hover:text-white" size={32} strokeWidth={2.5} />
+                   </div>
+                   <p className="text-sm font-bold text-gray-500 group-hover:text-blue-100 text-left">Standard challenge for your level.</p>
+                </button>
+
+                <button onClick={() => setDifficulty('Hard')} className="group relative p-6 rounded-3xl border-b-4 border-brand-red bg-red-50 hover:bg-brand-red active:border-b-0 active:translate-y-1 transition-all">
+                   <div className="flex items-center justify-between mb-2">
+                       <span className="text-xl font-black text-brand-red group-hover:text-white uppercase tracking-wide">Hard</span>
+                       <Flame className="text-brand-red group-hover:text-white" size={32} strokeWidth={2.5} />
+                   </div>
+                   <p className="text-sm font-bold text-gray-500 group-hover:text-red-100 text-left">Complex topics and faster speed.</p>
+                </button>
+             </div>
+        </div>
+      );
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-white">
         <Loader2 className={`w-12 h-12 ${isPractice ? 'text-purple-500' : 'text-brand-green'} animate-spin mb-4`} />
-        <h2 className="text-xl font-bold text-gray-700">{isPractice ? 'Preparing Practice Session...' : 'Creating your lesson...'}</h2>
+        <h2 className="text-xl font-bold text-gray-700">
+          {focusCharacters.length > 0 ? 'Preparing Character Drill...' : isPractice ? 'Preparing Practice Session...' : 'Creating your lesson...'}
+        </h2>
         <p className="text-gray-400 text-center px-4">
-            Building listening, speaking, and translation exercises.
+            {focusCharacters.length > 0 ? 'Focusing on specific symbols.' : `Building ${difficulty.toLowerCase()} listening, speaking, and translation exercises.`}
         </p>
       </div>
     );
@@ -262,9 +343,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   const themeBg = isPractice ? 'bg-purple-500' : 'bg-brand-green';
   const isSpeaking = currentQ.type === QuestionType.SPEAKING;
   const isListeningQ = currentQ.type === QuestionType.LISTENING;
+  const isTranslate = currentQ.type === QuestionType.TRANSLATE;
 
   // Determine button state
-  const canCheck = isSpeaking ? spokenText.length > 0 : !!selectedOption;
+  let canCheck = false;
+  if (isSpeaking) canCheck = spokenText.length > 0;
+  else if (isTranslate) canCheck = typedAnswer.trim().length > 0;
+  else canCheck = !!selectedOption;
 
   return (
     <div className="flex flex-col h-full max-w-lg mx-auto bg-white sm:border-x border-gray-200 sm:shadow-lg min-h-screen relative">
@@ -277,7 +362,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
       {/* Header */}
       <div className="px-4 py-6 flex items-center gap-4 mt-4">
-        <button onClick={onExit} className="text-gray-400 hover:text-gray-600">
+        <button onClick={() => setShowQuitModal(true)} className="text-gray-400 hover:text-gray-600 transition-colors">
           <X size={24} />
         </button>
         <div className="flex-1 bg-gray-200 rounded-full h-4">
@@ -287,6 +372,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
           />
         </div>
         {isPractice && <Dumbbell className="text-purple-500" size={24} />}
+        {focusCharacters.length > 0 && <BookA className="text-brand-blue" size={24} />}
       </div>
 
       {/* Question Area */}
@@ -297,36 +383,44 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
            {currentQ.type === QuestionType.TRANSLATE && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Translate this sentence</span>}
            {currentQ.type === QuestionType.LISTENING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Listen and select</span>}
            {currentQ.type === QuestionType.SPEAKING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Speak this sentence</span>}
+           {currentQ.type === QuestionType.MULTIPLE_CHOICE && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Select the correct answer</span>}
         </div>
 
         {/* Question Content */}
         <div className="mb-8">
            {isListeningQ ? (
-             <button 
-               onClick={() => speak(currentQ.questionText, currentLang.code)}
-               className="w-32 h-32 rounded-2xl bg-brand-blue text-white flex items-center justify-center mx-auto shadow-[0_6px_0_0_#1899d6] active:translate-y-[6px] active:shadow-none transition-all mb-4"
-             >
-                <Volume2 size={48} />
-             </button>
+             <div className="flex flex-col items-center">
+               <button 
+                 onClick={() => speak(currentQ.questionText, currentLang.code)}
+                 className="w-32 h-32 rounded-2xl bg-brand-blue text-white flex items-center justify-center shadow-[0_6px_0_0_#1899d6] active:translate-y-[6px] active:shadow-none transition-all mb-6"
+               >
+                  <Volume2 size={48} />
+               </button>
+             </div>
            ) : (
-             <div className="flex items-center gap-4">
-               {currentQ.type !== QuestionType.FILL_BLANK && (
-                 <button 
-                   onClick={() => speak(currentQ.questionText, currentLang.code)} 
-                   className="p-3 rounded-xl bg-brand-blue text-white shadow-sm active:scale-95 transition-transform"
-                 >
-                   <Volume2 size={24} />
-                 </button>
-               )}
-               <h2 className="text-2xl font-bold text-gray-700 leading-tight">
-                 {currentQ.questionText.split('____').map((part, i, arr) => (
+             <div className="flex items-start gap-4">
+                {/* Universal Speaker Icon for all non-listening types */}
+               <button 
+                 onClick={() => speak(currentQ.questionText, currentLang.code)} 
+                 className="mt-1 p-3 rounded-xl bg-brand-blue text-white shadow-[0_2px_0_0_#1899d6] active:shadow-none active:translate-y-[2px] transition-all flex-shrink-0"
+                 title="Read aloud"
+               >
+                 <Volume2 size={20} />
+               </button>
+               
+               <h2 className="text-2xl font-bold text-gray-700 leading-tight pt-1">
+                 {currentQ.questionText.includes('____') ? (
+                   currentQ.questionText.split('____').map((part, i, arr) => (
                     <React.Fragment key={i}>
                       {part}
                       {i < arr.length - 1 && (
-                        <span className="inline-block w-16 border-b-4 border-gray-300 mx-1 relative top-1"></span>
+                        <span className="inline-block min-w-[3rem] border-b-4 border-gray-300 mx-1 relative top-1"></span>
                       )}
                     </React.Fragment>
-                 ))}
+                   ))
+                 ) : (
+                   currentQ.questionText
+                 )}
                </h2>
              </div>
            )}
@@ -350,6 +444,26 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                  {isListening ? <MicOff size={32} /> : <Mic size={32} />}
                </button>
              )}
+          </div>
+        ) : isTranslate ? (
+          <div className="w-full">
+            <textarea 
+               value={typedAnswer}
+               onChange={(e) => setTypedAnswer(e.target.value)}
+               disabled={!!feedback || isChecking}
+               placeholder="Type your translation here..."
+               className={`
+                 w-full p-4 rounded-xl border-2 min-h-[120px] text-lg font-medium resize-none outline-none transition-all
+                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 text-brand-green-dark' : 
+                   feedback === 'incorrect' ? 'border-brand-red bg-red-50 text-brand-red' : 
+                   'border-gray-200 bg-gray-50 focus:border-brand-blue focus:bg-white text-gray-700'}
+               `}
+            />
+            {!feedback && (
+              <div className="mt-2 text-right">
+                <Keyboard size={20} className="inline-block text-gray-300" />
+              </div>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
@@ -411,10 +525,14 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                  fullWidth 
                  size="lg" 
                  onClick={handleCheck} 
-                 disabled={!canCheck}
+                 disabled={!canCheck || isChecking}
                  variant={isPractice ? 'practice' : 'primary'}
                >
-                 Check
+                 {isChecking ? (
+                   <div className="flex items-center justify-center gap-2">
+                     <Loader2 className="animate-spin" size={20} /> Checking...
+                   </div>
+                 ) : 'Check'}
                </Button>
             </div>
           )}
@@ -434,6 +552,32 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
         </div>
       </div>
+
+      {/* Quit Confirmation Modal */}
+      {showQuitModal && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200 backdrop-blur-sm">
+           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center transform scale-100 transition-all border-2 border-gray-100">
+               <div className="mb-6 flex justify-center">
+                 <div className="bg-red-50 p-4 rounded-full border-2 border-red-100 shadow-sm">
+                    <AlertTriangle size={40} className="text-brand-red" strokeWidth={2.5} />
+                 </div>
+               </div>
+               <h2 className="text-2xl font-extrabold text-gray-800 mb-3">Quit this lesson?</h2>
+               <p className="text-gray-500 font-bold mb-8 text-sm leading-relaxed">
+                 You'll lose your progress for this session if you leave now.
+               </p>
+               
+               <div className="flex flex-col gap-3">
+                 <Button variant="secondary" size="lg" fullWidth onClick={() => setShowQuitModal(false)} className="uppercase tracking-widest">
+                   Keep Learning
+                 </Button>
+                 <Button variant="outline" size="lg" fullWidth onClick={onExit} className="uppercase tracking-widest text-brand-red border-2 border-gray-200 hover:bg-red-50 hover:border-red-200 shadow-none">
+                   End Session
+                 </Button>
+               </div>
+           </div>
+        </div>
+      )}
     </div>
   );
 };

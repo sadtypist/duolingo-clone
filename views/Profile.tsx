@@ -1,5 +1,5 @@
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
 import { LANGUAGES, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
@@ -15,6 +15,11 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(user.name);
+
+  // Sync tempName if user prop changes externally
+  useEffect(() => {
+    setTempName(user.name);
+  }, [user.name]);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -33,9 +38,25 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
   };
 
   const handleSaveName = () => {
-    const updated = { ...user, name: tempName };
-    onUpdateUser(updated);
+    if (tempName.trim() === '') {
+        setTempName(user.name);
+        setIsEditing(false);
+        return;
+    }
+    if (tempName !== user.name) {
+        const updated = { ...user, name: tempName };
+        onUpdateUser(updated);
+    }
     setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+      if (e.key === 'Enter') {
+          handleSaveName();
+      } else if (e.key === 'Escape') {
+          setTempName(user.name);
+          setIsEditing(false);
+      }
   };
 
   // Calculated stats
@@ -80,34 +101,50 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
         </div>
 
         <div className="flex-1 text-center sm:text-left w-full">
-          <div className="flex items-center justify-center sm:justify-start gap-2 mb-2">
+          <div className="flex items-center justify-center sm:justify-start gap-2 mb-2 h-10">
             {isEditing ? (
-              <div className="flex gap-2 w-full">
-                <input 
+               <input 
                   value={tempName}
                   onChange={(e) => setTempName(e.target.value)}
-                  className="border-2 border-gray-300 rounded-xl px-3 py-1 font-bold text-xl w-full"
+                  onBlur={handleSaveName}
+                  onKeyDown={handleKeyDown}
+                  className="border-2 border-brand-blue rounded-xl px-3 py-1 font-extrabold text-xl text-gray-800 w-full max-w-[300px] outline-none focus:ring-2 focus:ring-brand-blue/20"
                   autoFocus
-                />
-                <Button size="sm" onClick={handleSaveName}>Save</Button>
-              </div>
+                  placeholder="Your Name"
+               />
             ) : (
-              <>
-                <h1 className="text-2xl font-extrabold text-gray-800">{user.name}</h1>
-                <button onClick={() => setIsEditing(true)} className="text-gray-400 hover:text-brand-blue">
-                  <Edit2 size={16} />
-                </button>
-              </>
+              <div 
+                onClick={() => setIsEditing(true)}
+                className="group flex items-center gap-3 cursor-pointer py-1 px-2 -ml-2 rounded-xl hover:bg-gray-100 transition-colors max-w-full"
+                title="Click to edit name"
+              >
+                <h1 className="text-2xl font-extrabold text-gray-800 truncate max-w-[200px] sm:max-w-none">
+                  {user.name || 'Your Name'}
+                </h1>
+                <Edit2 size={18} className="text-gray-300 group-hover:text-brand-blue transition-colors flex-shrink-0" />
+              </div>
             )}
           </div>
+          
+          {user.username && (
+              <p className="text-gray-400 font-bold text-sm mb-1">@{user.username}</p>
+          )}
+
           <p className="text-gray-500 font-semibold">Joined {new Date(user.joinDate).toLocaleDateString()}</p>
           
-          <div className="flex gap-6 mt-4 justify-center sm:justify-start">
-             <div className="flex items-center gap-1 text-brand-yellow font-bold">
-               <Flame size={20} fill="currentColor" /> {user.streak}
+          <div className="flex gap-6 mt-6 justify-center sm:justify-start">
+             <div className="flex flex-col items-center sm:items-start">
+                 <div className="text-xs font-bold text-gray-400 uppercase">Streak</div>
+                 <div className="flex items-center gap-1 text-brand-yellow font-black text-2xl">
+                    <Flame size={24} fill="currentColor" /> {user.streak}
+                 </div>
              </div>
-             <div className="flex items-center gap-1 text-brand-blue font-bold">
-               <Zap size={20} fill="currentColor" /> {totalXP} XP
+             <div className="w-px bg-gray-200 h-10"></div>
+             <div className="flex flex-col items-center sm:items-start">
+                 <div className="text-xs font-bold text-gray-400 uppercase">Total XP</div>
+                 <div className="flex items-center gap-1 text-brand-blue font-black text-2xl">
+                    <Zap size={24} fill="currentColor" /> {totalXP}
+                 </div>
              </div>
           </div>
         </div>
@@ -169,7 +206,17 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser }) => {
             <div key={prog.languageCode} className="bg-white border-2 border-gray-200 rounded-2xl p-4">
                <div className="flex items-center justify-between mb-3">
                  <div className="flex items-center gap-4">
-                   <div className="text-3xl">{lang.flag}</div>
+                   <div className="w-12 h-12 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center text-2xl relative">
+                      {lang.countryCode ? (
+                        <img 
+                          src={`https://flagcdn.com/w160/${lang.countryCode.toLowerCase()}.png`}
+                          alt={lang.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        lang.flag
+                      )}
+                   </div>
                    <div>
                      <div className="font-bold text-gray-700">{lang.name}</div>
                      <div className="text-xs text-gray-400 font-bold">Lvl {prog.level} • {prog.xp} XP</div>
@@ -209,3 +256,4 @@ function CheckCircleIcon() {
         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
     )
 }
+    

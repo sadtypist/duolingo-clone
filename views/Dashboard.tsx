@@ -1,9 +1,9 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
-import { LANGUAGES } from '../constants';
+import { LANGUAGES, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
 import { Button } from '../components/Button';
-import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Wifi, WifiOff, Loader2, AlertCircle } from 'lucide-react';
+import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Loader2, AlertCircle, Heart, Clock } from 'lucide-react';
 import { generateLesson } from '../services/geminiService';
 import { saveOfflineLesson, getOfflineLessonCount } from '../services/storageService';
 
@@ -16,9 +16,48 @@ interface DashboardProps {
 
 export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onStartPractice, onChangeLanguage }) => {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [timeUntilRefill, setTimeUntilRefill] = useState<string>('');
+  const [showEnergyModal, setShowEnergyModal] = useState(false);
+
   const currentLang = LANGUAGES.find(l => l.code === user.currentLanguageCode);
   const progress = user.currentLanguageCode ? user.progress[user.currentLanguageCode] : null;
   const offlineCount = user.currentLanguageCode ? getOfflineLessonCount(user.currentLanguageCode) : 0;
+  const totalXP = (Object.values(user.progress) as LanguageProgress[]).reduce((acc, p) => acc + p.xp, 0);
+
+  // Energy Timer Logic
+  useEffect(() => {
+    const updateTimer = () => {
+        if (user.energy >= MAX_ENERGY) {
+            setTimeUntilRefill('FULL');
+            return;
+        }
+
+        const lastRefill = new Date(user.lastEnergyRefill).getTime();
+        const nextRefill = lastRefill + ENERGY_REGEN_MS;
+        const now = Date.now();
+        const diff = nextRefill - now;
+
+        if (diff <= 0) {
+            setTimeUntilRefill('00:00'); // Should trigger a reload ideally via parent or storage check
+        } else {
+            const minutes = Math.floor(diff / 60000);
+            const seconds = Math.floor((diff % 60000) / 1000);
+            setTimeUntilRefill(`${minutes}:${seconds.toString().padStart(2, '0')}`);
+        }
+    };
+
+    updateTimer();
+    const interval = setInterval(updateTimer, 1000);
+    return () => clearInterval(interval);
+  }, [user.energy, user.lastEnergyRefill]);
+
+  const handleLessonAttempt = () => {
+      if (user.energy > 0) {
+          onStartLesson();
+      } else {
+          setShowEnergyModal(true);
+      }
+  };
 
   if (!currentLang) {
     return (
@@ -44,8 +83,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                   saveOfflineLesson({ ...lesson, savedAt: new Date().toISOString(), languageCode: currentLang.code });
               }
           }
-          // Force re-render or update notification? React state will update on next cycle if we were using it for count, but here we read from storage directly. 
-          // In a real app, we'd have a context or state for this.
       } catch (e) {
           console.error(e);
       } finally {
@@ -58,7 +95,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
     { name: 'Maria S.', xp: 1250, avatar: '👩‍🦱' },
     { 
       name: user.name, 
-      xp: (Object.values(user.progress) as LanguageProgress[]).reduce((acc, p) => acc + p.xp, 0), 
+      xp: totalXP, 
       avatar: user.avatar, 
       isUser: true 
     },
@@ -70,21 +107,60 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
   const hasWeakAreas = progress?.weakAreas && progress.weakAreas.length > 0;
 
   return (
-    <div className="h-full overflow-y-auto pb-24 bg-white rounded-none md:rounded-2xl">
+    <div className="h-full overflow-y-auto pb-24 bg-white rounded-none md:rounded-2xl relative">
+       {/* Energy Modal */}
+       {showEnergyModal && (
+           <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 animate-in fade-in duration-200">
+               <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl transform scale-100">
+                   <Heart className="text-brand-red mx-auto mb-4" size={64} fill="currentColor" />
+                   <h2 className="text-2xl font-extrabold text-gray-800 mb-2">Out of Energy</h2>
+                   <p className="text-gray-500 font-semibold mb-6">Wait for your energy to recharge before starting a new lesson.</p>
+                   <div className="bg-gray-100 rounded-xl p-3 mb-6 flex items-center justify-center gap-2 font-mono text-lg font-bold text-gray-600">
+                       <Clock size={20} /> {timeUntilRefill}
+                   </div>
+                   <Button fullWidth onClick={() => setShowEnergyModal(false)}>Okay</Button>
+               </div>
+           </div>
+       )}
+
        {/* Top Bar */}
        <header className="sticky top-0 bg-white/95 backdrop-blur-sm z-20 border-b border-gray-200 p-4 flex justify-between items-center w-full md:rounded-t-2xl">
           <div className="flex items-center gap-2 cursor-pointer hover:opacity-75" onClick={onChangeLanguage}>
-             <span className="text-2xl">{currentLang.flag}</span>
+             <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center relative">
+                {currentLang.countryCode ? (
+                  <img 
+                    src={`https://flagcdn.com/w80/${currentLang.countryCode.toLowerCase()}.png`}
+                    alt={currentLang.name}
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <span className="text-lg">{currentLang.flag}</span>
+                )}
+             </div>
              <span className="font-extrabold text-gray-500 uppercase text-sm tracking-wide">{currentLang.name}</span>
           </div>
-          <div className="flex items-center gap-4">
-             <div className="flex items-center text-brand-yellow font-bold" title="Daily Streak">
+          <div className="flex items-center gap-3 sm:gap-4">
+             {/* Energy Display */}
+             <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-50 border border-gray-200" title="Energy">
+                <Heart size={20} fill="currentColor" className="text-brand-red" />
+                <div className="flex flex-col leading-none">
+                    <span className="text-brand-red font-extrabold text-sm">{user.energy}/{MAX_ENERGY}</span>
+                    {user.energy < MAX_ENERGY && (
+                        <span className="text-[10px] font-bold text-gray-400 w-10">{timeUntilRefill}</span>
+                    )}
+                </div>
+             </div>
+
+             {/* Streak Display */}
+             <div className="hidden sm:flex items-center text-brand-yellow font-bold" title="Daily Streak">
                 <div className="w-3 h-3 rounded-full bg-brand-red mr-2 animate-pulse"></div>
                 {user.streak}
              </div>
-             <div className="flex items-center text-brand-blue font-bold" title="Total XP">
-                <Zap size={16} className="mr-1" fill="currentColor" />
-                {Object.values(user.progress).reduce((acc: number, p: LanguageProgress) => acc + p.xp, 0)}
+
+             {/* XP Display */}
+             <div className="flex items-center text-brand-blue font-bold px-3 py-1 rounded-full bg-blue-50 border border-blue-100" title="Total XP">
+                <Zap size={18} className="mr-1" fill="currentColor" />
+                {totalXP}
              </div>
           </div>
        </header>
@@ -108,9 +184,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
 
              {hasWeakAreas && (
                  <div className="bg-purple-50 border-2 border-purple-100 p-5 rounded-2xl w-full max-w-md mb-8 flex flex-col sm:flex-row items-center justify-between shadow-sm gap-4 relative overflow-hidden">
-                    {/* Decorative Background Element */}
                     <div className="absolute -top-6 -left-6 w-24 h-24 bg-purple-100 rounded-full opacity-50 z-0"></div>
-                    
                     <div className="relative z-10 w-full">
                        <div className="flex items-center gap-2 mb-2">
                           <div className="bg-purple-100 p-1.5 rounded-lg">
@@ -125,12 +199,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                                 {area}
                              </span>
                           ))}
-                          {(progress?.weakAreas.length || 0) > 3 && (
-                             <span className="text-xs font-bold text-purple-400 flex items-center px-1">+{((progress?.weakAreas.length || 0) - 3)} more</span>
-                          )}
                        </div>
                     </div>
-                    
                     <div className="relative z-10 flex-shrink-0 w-full sm:w-auto">
                         <Button variant="practice" size="sm" onClick={onStartPractice} fullWidth className="sm:w-auto shadow-md border-2 border-purple-600/10">
                            Practice Now
@@ -153,7 +223,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                  >
                    <button
                      disabled={isLocked}
-                     onClick={() => isCurrent ? onStartLesson() : null}
+                     onClick={() => isCurrent ? handleLessonAttempt() : null}
                      className={`
                        w-20 h-20 rounded-full flex items-center justify-center border-b-4 text-white text-3xl shadow-lg transition-all
                        ${isCompleted ? 'bg-brand-yellow border-yellow-600' : ''}
