@@ -61,8 +61,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
 
   if (!currentLang) {
     return (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-            <h2 className="text-2xl font-extrabold text-gray-700 mb-4">Pick a language to start!</h2>
+        <div className="flex flex-col items-center justify-center h-full p-8 text-center dark:text-white">
+            <h2 className="text-2xl font-extrabold text-gray-700 dark:text-gray-200 mb-4">Pick a language to start!</h2>
             <Button onClick={onChangeLanguage}>Choose Language</Button>
         </div>
     )
@@ -107,15 +107,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
   const hasWeakAreas = progress?.weakAreas && progress.weakAreas.length > 0;
 
   return (
-    <div className="h-full overflow-y-auto pb-24 bg-white rounded-none md:rounded-2xl relative">
+    <div className="h-full overflow-y-auto pb-24 bg-white dark:bg-gray-800 rounded-none md:rounded-2xl relative transition-colors duration-300">
        {/* Energy Modal */}
        {showEnergyModal && (
            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-6 animate-in fade-in duration-200">
-               <div className="bg-white rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl transform scale-100">
+               <div className="bg-white dark:bg-gray-800 rounded-2xl p-6 max-w-xs w-full text-center shadow-2xl transform scale-100 border-2 border-gray-100 dark:border-gray-700">
                    <Heart className="text-brand-red mx-auto mb-4" size={64} fill="currentColor" />
-                   <h2 className="text-2xl font-extrabold text-gray-800 mb-2">Out of Energy</h2>
-                   <p className="text-gray-500 font-semibold mb-6">Wait for your energy to recharge before starting a new lesson.</p>
-                   <div className="bg-gray-100 rounded-xl p-3 mb-6 flex items-center justify-center gap-2 font-mono text-lg font-bold text-gray-600">
+                   <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white mb-2">Out of Energy</h2>
+                   <p className="text-gray-500 dark:text-gray-400 font-semibold mb-6">Wait for your energy to recharge before starting a new lesson.</p>
+                   <div className="bg-gray-100 dark:bg-gray-700 rounded-xl p-3 mb-6 flex items-center justify-center gap-2 font-mono text-lg font-bold text-gray-600 dark:text-gray-300">
                        <Clock size={20} /> {timeUntilRefill}
                    </div>
                    <Button fullWidth onClick={() => setShowEnergyModal(false)}>Okay</Button>
@@ -124,9 +124,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
        )}
 
        {/* Top Bar */}
-       <header className="sticky top-0 bg-white/95 backdrop-blur-sm z-20 border-b border-gray-200 p-4 flex justify-between items-center w-full md:rounded-t-2xl">
+       <header className="sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm z-20 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center w-full md:rounded-t-2xl">
           <div className="flex items-center gap-2 cursor-pointer hover:opacity-75" onClick={onChangeLanguage}>
-             <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 bg-gray-100 flex items-center justify-center relative">
+             <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center relative">
                 {currentLang.countryCode ? (
                   <img 
                     src={`https://flagcdn.com/w80/${currentLang.countryCode.toLowerCase()}.png`}
@@ -137,16 +137,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                   <span className="text-lg">{currentLang.flag}</span>
                 )}
              </div>
-             <span className="font-extrabold text-gray-500 uppercase text-sm tracking-wide">{currentLang.name}</span>
+             <span className="font-extrabold text-gray-500 dark:text-gray-400 uppercase text-sm tracking-wide">{currentLang.name}</span>
           </div>
           <div className="flex items-center gap-3 sm:gap-4">
              {/* Energy Display */}
-             <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-50 border border-gray-200" title="Energy">
+             <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600" title="Energy">
                 <Heart size={20} fill="currentColor" className="text-brand-red" />
                 <div className="flex flex-col leading-none">
                     <span className="text-brand-red font-extrabold text-sm">{user.energy}/{MAX_ENERGY}</span>
                     {user.energy < MAX_ENERGY && (
-                        <span className="text-[10px] font-bold text-gray-400 w-10">{timeUntilRefill}</span>
+                        <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500 w-10">{timeUntilRefill}</span>
                     )}
                 </div>
              </div>
@@ -158,7 +158,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
              </div>
 
              {/* XP Display */}
-             <div className="flex items-center text-brand-blue font-bold px-3 py-1 rounded-full bg-blue-50 border border-blue-100" title="Total XP">
+             <div className="flex items-center text-brand-blue font-bold px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800" title="Total XP">
                 <Zap size={18} className="mr-1" fill="currentColor" />
                 {totalXP}
              </div>
@@ -175,7 +175,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                  <button 
                     onClick={handleDownload}
                     disabled={isDownloading}
-                    className="flex items-center gap-2 text-xs font-bold text-gray-400 hover:text-brand-blue transition-colors"
+                    className="flex items-center gap-2 text-xs font-bold text-gray-400 dark:text-gray-500 hover:text-brand-blue transition-colors"
                  >
                      {isDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
                      {isDownloading ? 'Downloading...' : `Offline Lessons Available: ${offlineCount}`}
@@ -183,18 +183,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
              </div>
 
              {hasWeakAreas && (
-                 <div className="bg-purple-50 border-2 border-purple-100 p-5 rounded-2xl w-full max-w-md mb-8 flex flex-col sm:flex-row items-center justify-between shadow-sm gap-4 relative overflow-hidden">
-                    <div className="absolute -top-6 -left-6 w-24 h-24 bg-purple-100 rounded-full opacity-50 z-0"></div>
+                 <div className="bg-purple-50 dark:bg-purple-900/30 border-2 border-purple-100 dark:border-purple-800 p-5 rounded-2xl w-full max-w-md mb-8 flex flex-col sm:flex-row items-center justify-between shadow-sm gap-4 relative overflow-hidden">
+                    <div className="absolute -top-6 -left-6 w-24 h-24 bg-purple-100 dark:bg-purple-800 rounded-full opacity-50 z-0"></div>
                     <div className="relative z-10 w-full">
                        <div className="flex items-center gap-2 mb-2">
-                          <div className="bg-purple-100 p-1.5 rounded-lg">
-                             <Dumbbell className="text-purple-600" size={18} />
+                          <div className="bg-purple-100 dark:bg-purple-800 p-1.5 rounded-lg">
+                             <Dumbbell className="text-purple-600 dark:text-purple-300" size={18} />
                           </div>
-                          <h3 className="text-purple-900 font-extrabold uppercase tracking-wide text-sm">Weak Areas Detected</h3>
+                          <h3 className="text-purple-900 dark:text-purple-100 font-extrabold uppercase tracking-wide text-sm">Weak Areas Detected</h3>
                        </div>
                        <div className="flex flex-wrap gap-2">
                           {progress?.weakAreas.slice(0, 3).map(area => (
-                             <span key={area} className="bg-white text-purple-700 px-2 py-1 rounded-lg text-xs font-bold border border-purple-200 shadow-sm flex items-center gap-1.5">
+                             <span key={area} className="bg-white dark:bg-purple-800 text-purple-700 dark:text-purple-100 px-2 py-1 rounded-lg text-xs font-bold border border-purple-200 dark:border-purple-700 shadow-sm flex items-center gap-1.5">
                                 <AlertCircle size={12} className="text-brand-red" />
                                 {area}
                              </span>
@@ -227,19 +227,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                      className={`
                        w-20 h-20 rounded-full flex items-center justify-center border-b-4 text-white text-3xl shadow-lg transition-all
                        ${isCompleted ? 'bg-brand-yellow border-yellow-600' : ''}
-                       ${isCurrent ? 'bg-brand-green border-brand-green-dark animate-bounce-short cursor-pointer ring-4 ring-green-100' : ''}
-                       ${isLocked ? 'bg-gray-200 border-gray-300 cursor-default' : ''}
+                       ${isCurrent ? 'bg-brand-green border-brand-green-dark animate-bounce-short cursor-pointer ring-4 ring-green-100 dark:ring-green-900' : ''}
+                       ${isLocked ? 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 cursor-default' : ''}
                      `}
                    >
                       {isCompleted ? <Star fill="white" size={32} /> : 
-                       isLocked ? <Lock size={24} className="text-gray-400" /> : 
+                       isLocked ? <Lock size={24} className="text-gray-400 dark:text-gray-500" /> : 
                        <Star fill="white" size={32} />}
                    </button>
                    
                    {isCurrent && (
-                     <div className="absolute -top-12 bg-white text-gray-700 font-bold py-2 px-4 rounded-xl border-2 border-gray-200 shadow-sm animate-bounce whitespace-nowrap z-20">
+                     <div className="absolute -top-12 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 font-bold py-2 px-4 rounded-xl border-2 border-gray-200 dark:border-gray-600 shadow-sm animate-bounce whitespace-nowrap z-20">
                        START!
-                       <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-white border-b-2 border-r-2 border-gray-200 rotate-45"></div>
+                       <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-3 h-3 bg-white dark:bg-gray-700 border-b-2 border-r-2 border-gray-200 dark:border-gray-600 rotate-45"></div>
                      </div>
                    )}
                  </div>
@@ -250,19 +250,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
           {/* Sidebar Widgets */}
           <div className="lg:col-span-1 space-y-6 order-1 lg:order-2">
              {/* Daily Goals */}
-             <div className="bg-white border-2 border-gray-200 rounded-2xl p-4">
+             <div className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-4">
-                   <h3 className="font-bold text-gray-700 text-lg">Daily Goals</h3>
+                   <h3 className="font-bold text-gray-700 dark:text-gray-200 text-lg">Daily Goals</h3>
                    <Target className="text-brand-blue" />
                 </div>
                 <div className="space-y-4">
                    {user.dailyGoals.map(goal => (
                       <div key={goal.id}>
-                         <div className="flex justify-between text-sm font-bold text-gray-600 mb-1">
+                         <div className="flex justify-between text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">
                             <span>{goal.title}</span>
                             <span>{goal.current}/{goal.target}</span>
                          </div>
-                         <div className="w-full bg-gray-200 rounded-full h-3">
+                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
                             <div 
                                className={`h-3 rounded-full transition-all ${goal.completed ? 'bg-brand-yellow' : 'bg-brand-blue'}`}
                                style={{ width: `${Math.min((goal.current / goal.target) * 100, 100)}%` }}
@@ -274,20 +274,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
              </div>
 
              {/* Leaderboard Teaser */}
-             <div className="bg-white border-2 border-gray-200 rounded-2xl p-4">
+             <div className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-4">
                 <div className="flex items-center justify-between mb-4">
-                   <h3 className="font-bold text-gray-700 text-lg">Leaderboard</h3>
+                   <h3 className="font-bold text-gray-700 dark:text-gray-200 text-lg">Leaderboard</h3>
                    <Trophy className="text-brand-yellow" />
                 </div>
                 <div className="space-y-3">
                    {leaderboard.map((p, i) => (
-                      <div key={i} className={`flex items-center p-2 rounded-xl ${p.isUser ? 'bg-blue-50 border border-blue-200' : ''}`}>
+                      <div key={i} className={`flex items-center p-2 rounded-xl ${p.isUser ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' : ''}`}>
                          <div className="font-bold text-gray-400 w-6">{i + 1}</div>
-                         <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-3">
+                         <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mr-3">
                            {p.avatar.startsWith('data:') ? <img src={p.avatar} className="w-full h-full rounded-full" /> : p.avatar}
                          </div>
-                         <div className="flex-1 font-bold text-gray-700 text-sm">{p.name}</div>
-                         <div className="font-bold text-gray-500 text-xs">{p.xp} XP</div>
+                         <div className="flex-1 font-bold text-gray-700 dark:text-gray-200 text-sm">{p.name}</div>
+                         <div className="font-bold text-gray-500 dark:text-gray-400 text-xs">{p.xp} XP</div>
                       </div>
                    ))}
                 </div>

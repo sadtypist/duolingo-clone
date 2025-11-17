@@ -23,6 +23,21 @@ const App: React.FC = () => {
   const [showSyncToast, setShowSyncToast] = useState(false);
   const [showLanding, setShowLanding] = useState(!user.hasCompletedOnboarding);
 
+  // Effect to apply Dark Mode and Animation preferences globally
+  useEffect(() => {
+    if (user.preferences?.darkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+
+    if (user.preferences?.disableAnimations) {
+      document.body.classList.add('disable-animations');
+    } else {
+      document.body.classList.remove('disable-animations');
+    }
+  }, [user.preferences?.darkMode, user.preferences?.disableAnimations]);
+
   useEffect(() => {
     const timer = setInterval(() => {
         const loadedUser = getProfile();
@@ -190,7 +205,7 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="h-full bg-gray-50 flex flex-col md:flex-row justify-center overflow-hidden">
+    <div className="h-full bg-gray-50 dark:bg-gray-900 flex flex-col md:flex-row justify-center overflow-hidden transition-colors duration-300">
       <div className={`fixed top-4 left-1/2 transform -translate-x-1/2 bg-brand-green text-white px-4 py-2 rounded-full shadow-lg z-50 flex items-center gap-2 transition-all duration-500 ${showSyncToast ? 'translate-y-0 opacity-100' : '-translate-y-20 opacity-0'}`}>
           <Wifi size={18} />
           <span className="font-bold text-sm">Back online! Syncing progress...</span>
@@ -198,7 +213,7 @@ const App: React.FC = () => {
 
       <Navigation currentView={currentView} setView={setCurrentView} userPreferences={user.preferences} />
 
-      <main className="flex-1 h-full relative w-full max-w-4xl mx-auto bg-white md:shadow-xl md:my-4 md:rounded-2xl overflow-hidden border-gray-200 md:border">
+      <main className="flex-1 h-full relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-800 md:shadow-xl md:my-4 md:rounded-2xl overflow-hidden border-gray-200 dark:border-gray-700 md:border transition-colors duration-300">
           {renderView()}
       </main>
     </div>

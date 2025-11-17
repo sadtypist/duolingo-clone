@@ -5,7 +5,7 @@ import { generateLesson, validateTranslation } from '../services/geminiService';
 import { completeLesson, popOfflineLesson } from '../services/storageService';
 import { LANGUAGES, XP_PER_LESSON, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame, ArrowRight, Lightbulb } from 'lucide-react';
+import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame, ArrowRight, Lightbulb, Zap, Download } from 'lucide-react';
 
 // Polyfill for SpeechRecognition types
 declare global {
@@ -61,10 +61,23 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   const [incorrectQuestions, setIncorrectQuestions] = useState<string[]>([]); 
   const [correctCount, setCorrectCount] = useState(0);
   
-  const [showAchievement, setShowAchievement] = useState<string | null>(null);
+  // Summary State
+  const [lessonResult, setLessonResult] = useState<{
+    xpGained: number;
+    correctCount: number;
+    totalQuestions: number;
+    newAchievements: string[];
+    updatedProfile: UserProfile;
+  } | null>(null);
 
   const currentLang = LANGUAGES.find(l => l.code === user.currentLanguageCode);
+  const progress = user.currentLanguageCode ? user.progress[user.currentLanguageCode] : undefined;
+  const hasWeakAreas = (progress?.weakAreas?.length || 0) > 0;
+
   const recognitionRef = useRef<any>(null);
+  
+  // Helper to get current question safely
+  const currentQ = lesson?.questions[currentQuestionIndex];
 
   useEffect(() => {
     const loadLesson = async () => {
@@ -87,6 +100,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         
         const progress = user.progress[currentLang.code];
         const userLevel = progress?.level || 1;
+        // Prioritize recent weak areas for practice
         const weakAreas = progress?.weakAreas || [];
         
         try {
@@ -165,7 +179,19 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
     recognition.onresult = (event: any) => {
       const transcript = event.results[0][0].transcript;
-      setSpokenText(transcript);
+      
+      if (currentQ) {
+         if (currentQ.type === QuestionType.SPEAKING) {
+            setSpokenText(transcript);
+         } else if (currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE) {
+            setTypedAnswer(prev => {
+                const cleanTranscript = transcript.trim();
+                const cleanPrev = prev.trim();
+                // Append if there is existing text, otherwise just set
+                return cleanPrev ? `${cleanPrev} ${cleanTranscript}` : cleanTranscript;
+            });
+         }
+      }
       setIsListening(false);
     };
 
@@ -192,10 +218,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   }
 
   const handleCheck = async () => {
-    if (!lesson) return;
+    if (!currentQ) return;
     setIsChecking(true);
     
-    const currentQ = lesson.questions[currentQuestionIndex];
     const topic = currentQ.topic || 'General';
     let isCorrect = false;
 
@@ -258,9 +283,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   const handleSkipConfirmation = () => {
     setShowSkipModal(false);
     // Treat as weak area for adaptive purposes but no feedback penalty
-    const currentQ = lesson?.questions[currentQuestionIndex];
-    if (currentQ) {
-        setIncorrectQuestions(prev => [...prev, currentQ.topic || 'General']);
+    const q = lesson?.questions[currentQuestionIndex];
+    if (q) {
+        setIncorrectQuestions(prev => [...prev, q.topic || 'General']);
     }
     handleNext();
   };
@@ -279,61 +304,57 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       strongTopicsDetected: correctQuestions
     }, isPractice);
 
-    if (result.newAchievements.length > 0) {
-      const ach = ACHIEVEMENTS.find(a => a.id === result.newAchievements[0]);
-      if (ach) {
-        setShowAchievement(ach.title);
-        if (user.preferences?.enableSoundEffects) {
-            playSuccessSound();
-        }
-        setTimeout(() => {
-          onComplete(result.profile);
-        }, 2500);
-        return;
-      }
-    }
+    setLessonResult({
+        xpGained: xp,
+        correctCount: correctCount,
+        totalQuestions: lesson.questions.length,
+        newAchievements: result.newAchievements,
+        updatedProfile: result.profile
+    });
 
-    onComplete(result.profile);
+    if (user.preferences?.enableSoundEffects) {
+        playSuccessSound();
+    }
   };
 
-  if (!currentLang) return <div className="p-4">No language selected</div>;
+  if (!currentLang) return <div className="p-4 dark:text-white">No language selected</div>;
 
   // DIFFICULTY SELECTION SCREEN
   if (!difficulty) {
       return (
-        <div className="flex flex-col h-full max-w-lg mx-auto bg-white sm:border-x border-gray-200 sm:shadow-lg min-h-screen p-6">
+        <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg min-h-screen p-6">
              <div className="flex items-center mb-8">
-                <button onClick={onExit} className="text-gray-400 hover:text-gray-600 transition-colors p-2 -ml-2 rounded-full hover:bg-gray-100">
+                <button onClick={onExit} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
                   <X size={24} />
                 </button>
-                <h1 className="flex-1 text-center font-extrabold text-xl text-gray-700 mr-8">New Lesson</h1>
+                <h1 className="flex-1 text-center font-extrabold text-xl text-gray-700 dark:text-white mr-8">New Lesson</h1>
              </div>
 
              <div className="flex-1 flex flex-col justify-center space-y-4 pb-16">
-                <h2 className="text-center text-2xl font-black text-gray-800 mb-6">Choose difficulty</h2>
+                <h2 className="text-center text-2xl font-black text-gray-800 dark:text-white mb-6">Choose difficulty</h2>
                 
-                <button onClick={() => setDifficulty('Easy')} className="group relative p-6 rounded-3xl border-b-4 border-brand-green bg-green-50 hover:bg-brand-green active:border-b-0 active:translate-y-1 transition-all">
+                <button onClick={() => setDifficulty('Easy')} className="group relative p-6 rounded-3xl border-b-4 border-brand-green bg-green-50 dark:bg-green-900/20 hover:bg-brand-green active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xl font-black text-brand-green-dark group-hover:text-white uppercase tracking-wide">Easy</span>
+                      <span className="text-xl font-black text-brand-green-dark dark:text-brand-green group-hover:text-white uppercase tracking-wide">Easy</span>
                       <Feather className="text-brand-green group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 group-hover:text-green-100 text-left">Relaxed pace with simple concepts.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-green-100 text-left">Relaxed pace with simple concepts.</p>
                 </button>
 
-                <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-blue-50 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
+                <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-blue-50 dark:bg-blue-900/20 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                       <span className="text-xl font-black text-brand-blue-dark group-hover:text-white uppercase tracking-wide">Medium</span>
+                       <span className="text-xl font-black text-brand-blue-dark dark:text-blue-300 group-hover:text-white uppercase tracking-wide">Medium</span>
                        <Target className="text-brand-blue group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 group-hover:text-blue-100 text-left">Standard challenge for your level.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-blue-100 text-left">Standard challenge for your level.</p>
                 </button>
 
-                <button onClick={() => setDifficulty('Hard')} className="group relative p-6 rounded-3xl border-b-4 border-brand-red bg-red-50 hover:bg-brand-red active:border-b-0 active:translate-y-1 transition-all">
+                <button onClick={() => setDifficulty('Hard')} className="group relative p-6 rounded-3xl border-b-4 border-brand-red bg-red-50 dark:bg-red-900/20 hover:bg-brand-red active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                       <span className="text-xl font-black text-brand-red group-hover:text-white uppercase tracking-wide">Hard</span>
+                       <span className="text-xl font-black text-brand-red dark:text-red-400 group-hover:text-white uppercase tracking-wide">Hard</span>
                        <Flame className="text-brand-red group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 group-hover:text-red-100 text-left">Complex topics and faster speed.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-red-100 text-left">Complex topics and faster speed.</p>
                 </button>
              </div>
         </div>
@@ -342,13 +363,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-white">
+      <div className="flex flex-col items-center justify-center h-screen bg-white dark:bg-gray-800">
         <Loader2 className={`w-12 h-12 ${isPractice ? 'text-purple-500' : 'text-brand-green'} animate-spin mb-4`} />
-        <h2 className="text-xl font-bold text-gray-700">
-          {focusCharacters.length > 0 ? 'Preparing Character Drill...' : isPractice ? 'Preparing Practice Session...' : 'Creating your lesson...'}
+        <h2 className="text-xl font-bold text-gray-700 dark:text-white">
+          {focusCharacters.length > 0 ? 'Preparing Character Drill...' : (isPractice && hasWeakAreas) ? 'Targeting Your Weak Areas...' : isPractice ? 'Preparing Practice Session...' : 'Creating your lesson...'}
         </h2>
-        <p className="text-gray-400 text-center px-4">
-            {focusCharacters.length > 0 ? 'Focusing on specific symbols.' : `Building ${difficulty.toLowerCase()} listening, speaking, and translation exercises.`}
+        <p className="text-gray-400 dark:text-gray-500 text-center px-4">
+            {focusCharacters.length > 0 ? 'Focusing on specific symbols.' : (isPractice && hasWeakAreas) ? 'Customizing questions to help you improve.' : `Building ${difficulty.toLowerCase()} listening, speaking, and translation exercises.`}
         </p>
       </div>
     );
@@ -356,12 +377,12 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   if (!lesson) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen p-4 text-center">
+      <div className="flex flex-col items-center justify-center h-screen p-4 text-center bg-white dark:bg-gray-800">
         {isOfflineMode ? (
             <>
                 <WifiOff className="w-16 h-16 text-gray-300 mb-4" />
-                <h2 className="text-xl font-bold text-gray-700 mb-2">You are offline</h2>
-                <p className="text-gray-500 mb-6">No downloaded lessons found for {currentLang.name}.</p>
+                <h2 className="text-xl font-bold text-gray-700 dark:text-white mb-2">You are offline</h2>
+                <p className="text-gray-500 dark:text-gray-400 mb-6">No downloaded lessons found for {currentLang.name}.</p>
             </>
         ) : (
             <h2 className="text-xl font-bold text-red-500 mb-4">Unable to load lesson.</h2>
@@ -371,17 +392,70 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     );
   }
 
-  if (showAchievement) {
+  // SUMMARY SCREEN
+  if (lessonResult) {
+    const accuracy = Math.round((lessonResult.correctCount / lessonResult.totalQuestions) * 100);
+
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-brand-yellow text-white p-8 text-center animate-bounce-short">
-        <Trophy size={80} className="mb-4" />
-        <h1 className="text-4xl font-black mb-2">Achievement Unlocked!</h1>
-        <p className="text-2xl font-bold">{showAchievement}</p>
+      <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg min-h-screen p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+         <div className="flex-1 flex flex-col items-center justify-center text-center">
+            
+            <div className="relative mb-6">
+                <div className="absolute inset-0 bg-yellow-100 dark:bg-yellow-900/40 rounded-full blur-2xl opacity-60 animate-pulse"></div>
+                <Trophy size={120} className="text-brand-yellow relative z-10" strokeWidth={1.5} />
+            </div>
+
+            <h1 className="text-3xl font-black text-gray-800 dark:text-white mb-2">Lesson Complete!</h1>
+            <div className="flex items-center gap-2 text-brand-yellow font-bold mb-8 bg-yellow-50 dark:bg-yellow-900/20 px-4 py-1 rounded-full">
+                <Zap size={20} fill="currentColor" />
+                <span>+{lessonResult.xpGained} XP Earned</span>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4 w-full mb-8">
+                <div className="bg-gray-50 dark:bg-gray-700 border-2 border-gray-100 dark:border-gray-600 rounded-2xl p-4 text-center">
+                    <div className="text-sm font-bold text-gray-400 uppercase mb-1">Accuracy</div>
+                    <div className="text-3xl font-black text-gray-700 dark:text-white">{accuracy}%</div>
+                </div>
+                <div className="bg-gray-50 dark:bg-gray-700 border-2 border-gray-100 dark:border-gray-600 rounded-2xl p-4 text-center">
+                    <div className="text-sm font-bold text-gray-400 uppercase mb-1">Correct</div>
+                    <div className="text-3xl font-black text-brand-green">{lessonResult.correctCount}</div>
+                </div>
+            </div>
+
+            {lessonResult.newAchievements.length > 0 && (
+                <div className="w-full mb-6">
+                    <h3 className="text-center text-gray-400 font-bold uppercase text-xs tracking-widest mb-3">Unlocked Achievements</h3>
+                    <div className="space-y-3">
+                        {lessonResult.newAchievements.map(id => {
+                            const ach = ACHIEVEMENTS.find(a => a.id === id);
+                            if (!ach) return null;
+                            return (
+                                <div key={id} className="flex items-center gap-4 bg-brand-yellow/10 dark:bg-brand-yellow/5 border-2 border-brand-yellow p-4 rounded-2xl">
+                                    <div className="text-3xl">{ach.icon}</div>
+                                    <div className="text-left">
+                                        <div className="font-black text-gray-800 dark:text-gray-100 text-sm">{ach.title}</div>
+                                        <div className="text-xs font-bold text-gray-600 dark:text-gray-400">{ach.description}</div>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+         </div>
+
+         <div className="w-full pt-6 border-t border-gray-100 dark:border-gray-700">
+             <Button fullWidth size="lg" onClick={() => onComplete(lessonResult.updatedProfile)}>
+                 Continue
+             </Button>
+         </div>
       </div>
     );
   }
 
-  const currentQ = lesson.questions[currentQuestionIndex];
+  // Ensure we have a currentQ before rendering question content
+  if (!currentQ) return null;
+
   const progressPercent = ((currentQuestionIndex) / lesson.questions.length) * 100;
   const themeBg = isPractice ? 'bg-purple-500' : 'bg-brand-green';
   const isSpeaking = currentQ.type === QuestionType.SPEAKING;
@@ -395,28 +469,39 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   else canCheck = !!selectedOption;
 
   return (
-    <div className="flex flex-col h-full max-w-lg mx-auto bg-white sm:border-x border-gray-200 sm:shadow-lg min-h-screen relative">
+    <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg min-h-screen relative transition-colors duration-300">
       {/* Offline Indicator - Enhanced visibility */}
       {isOfflineMode && (
-        <div className="bg-gray-900 text-white py-3 px-4 flex flex-col sm:flex-row items-center justify-center gap-3 animate-in slide-in-from-top z-30 shadow-md">
-          <div className="flex items-center gap-2 text-amber-400 font-black uppercase tracking-widest text-xs">
-             <WifiOff size={16} />
-             <span>Offline Mode</span>
+        <div className="bg-amber-500 dark:bg-amber-600 text-white py-3 px-4 animate-in slide-in-from-top z-30 shadow-md">
+          <div className="max-w-lg mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex flex-col items-center sm:items-start">
+              <div className="flex items-center gap-2 font-black uppercase tracking-widest text-xs mb-1">
+                 <WifiOff size={16} />
+                 <span>Offline Mode - Features Limited</span>
+              </div>
+              <span className="text-xs font-bold text-amber-100 text-center sm:text-left">
+                 Smart checking and speech features are unavailable.
+              </span>
+            </div>
+            <button 
+                onClick={onExit}
+                className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/20 hover:bg-white/30 font-bold text-xs transition-colors border border-white/20 whitespace-nowrap"
+            >
+                <Download size={14} />
+                Download Lessons
+            </button>
           </div>
-          <span className="text-xs font-bold text-gray-300 text-center sm:text-left">
-             Smart checking and speech features are unavailable.
-          </span>
         </div>
       )}
 
       {/* Header - Sticky and visually enhanced */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm px-4 py-4 flex items-center gap-4 border-b border-gray-50 shadow-sm">
-        <button onClick={() => setShowQuitModal(true)} className="text-gray-400 hover:text-gray-600 transition-colors">
+      <div className="sticky top-0 z-20 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm px-4 py-4 flex items-center gap-4 border-b border-gray-50 dark:border-gray-700 shadow-sm">
+        <button onClick={() => setShowQuitModal(true)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
           <X size={24} />
         </button>
         
         <div className="flex-1 flex items-center gap-3" role="progressbar" aria-valuenow={Math.round(progressPercent)} aria-valuemin={0} aria-valuemax={100}>
-            <div className="flex-1 bg-gray-200 rounded-full h-4 overflow-hidden">
+            <div className="flex-1 bg-gray-200 dark:bg-gray-700 rounded-full h-4 overflow-hidden">
               <div 
                 className={`${themeBg} h-4 rounded-full transition-all duration-500 ease-out`}
                 style={{ width: `${Math.max(5, progressPercent)}%` }}
@@ -464,13 +549,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                  <Volume2 size={20} />
                </button>
                
-               <h2 className="text-2xl font-bold text-gray-700 leading-tight pt-1">
+               <h2 className="text-2xl font-bold text-gray-700 dark:text-white leading-tight pt-1">
                  {currentQ.questionText.includes('____') ? (
                    currentQ.questionText.split('____').map((part, i, arr) => (
                     <React.Fragment key={i}>
                       {part}
                       {i < arr.length - 1 && (
-                        <span className="inline-block min-w-[3rem] border-b-4 border-gray-300 mx-1 relative top-1"></span>
+                        <span className="inline-block min-w-[3rem] border-b-4 border-gray-300 dark:border-gray-600 mx-1 relative top-1"></span>
                       )}
                     </React.Fragment>
                    ))
@@ -490,13 +575,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                         onClick={() => setShowHint(true)}
                         className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-brand-blue transition-colors group"
                     >
-                        <div className="p-1 rounded-full group-hover:bg-blue-50 transition-colors">
+                        <div className="p-1 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
                             <Lightbulb size={18} />
                         </div>
                         <span>Need a hint?</span>
                     </button>
                 ) : (
-                    <div className="inline-flex items-start gap-3 bg-blue-50 border border-brand-blue/20 px-4 py-3 rounded-xl text-brand-blue animate-in fade-in slide-in-from-top-2">
+                    <div className="inline-flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-brand-blue/20 px-4 py-3 rounded-xl text-brand-blue animate-in fade-in slide-in-from-top-2">
                         <Lightbulb size={18} className="flex-shrink-0 mt-0.5" />
                         <div className="flex flex-col">
                              {currentQ.topic && (
@@ -518,7 +603,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         {/* Input Area */}
         {isSpeaking ? (
           <div className="flex flex-col items-center gap-6">
-             <div className={`p-4 w-full min-h-[80px] rounded-2xl border-2 ${spokenText ? 'border-brand-blue bg-blue-50' : 'border-gray-200 bg-gray-50'} flex items-center justify-center text-lg font-semibold text-center`}>
+             <div className={`p-4 w-full min-h-[80px] rounded-2xl border-2 ${spokenText ? 'border-brand-blue bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'} flex items-center justify-center text-lg font-semibold text-center dark:text-white`}>
                {spokenText || "Tap mic to speak..."}
              </div>
              
@@ -535,24 +620,34 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
              )}
           </div>
         ) : isTranslate ? (
-          <div className="w-full">
+          <div className="w-full relative">
             <textarea 
                value={typedAnswer}
                onChange={(e) => setTypedAnswer(e.target.value)}
                disabled={!!feedback || isChecking}
-               placeholder="Type your translation here..."
+               placeholder="Type or speak your translation..."
                className={`
-                 w-full p-4 rounded-xl border-2 min-h-[120px] text-lg font-medium resize-none outline-none transition-all
-                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 text-brand-green-dark scale-105 ring-4 ring-green-200 shadow-lg' : 
-                   feedback === 'incorrect' ? 'border-brand-red bg-red-50 text-brand-red' : 
-                   'border-gray-200 bg-gray-50 focus:border-brand-blue focus:bg-white text-gray-700'}
+                 w-full p-4 pb-12 rounded-xl border-2 min-h-[120px] text-lg font-medium resize-none outline-none transition-all dark:text-white
+                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 dark:bg-green-900/20 text-brand-green-dark dark:text-green-300 scale-105 ring-4 ring-green-200 dark:ring-green-900 shadow-lg' : 
+                   feedback === 'incorrect' ? 'border-brand-red bg-red-50 dark:bg-red-900/20 text-brand-red' : 
+                   'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:border-brand-blue focus:bg-white dark:focus:bg-gray-800 text-gray-700'}
                `}
             />
-            {!feedback && (
-              <div className="mt-2 text-right">
-                <Keyboard size={20} className="inline-block text-gray-300" />
-              </div>
-            )}
+            <div className="absolute bottom-3 right-3 flex items-center gap-2">
+               {!feedback && (
+                 <>
+                   <button
+                       onClick={toggleListening}
+                       className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md' : 'bg-gray-100 dark:bg-gray-600 text-gray-400 dark:text-gray-300 hover:bg-brand-blue hover:text-white'}`}
+                       title="Use Voice Input"
+                   >
+                       {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                   </button>
+                   <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1"></div>
+                   <Keyboard size={20} className="text-gray-300" />
+                 </>
+               )}
+            </div>
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3">
@@ -561,10 +656,10 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
               const isCorrect = currentQ.correctAnswer === option;
               
               // Visual states for feedback
-              let statusClass = "border-gray-200 hover:bg-gray-50";
-              if (feedback === 'correct' && isCorrect) statusClass = "bg-green-100 border-brand-green text-brand-green-dark ring-4 ring-green-200 scale-105 shadow-lg z-10 transition-transform duration-500 ease-out";
-              if (feedback === 'incorrect' && isSelected) statusClass = "bg-red-100 border-brand-red text-brand-red";
-              if (!feedback && isSelected) statusClass = "bg-blue-50 border-brand-blue text-brand-blue";
+              let statusClass = "border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white";
+              if (feedback === 'correct' && isCorrect) statusClass = "bg-green-100 dark:bg-green-900/40 border-brand-green text-brand-green-dark dark:text-green-300 ring-4 ring-green-200 dark:ring-green-900 scale-105 shadow-lg z-10 transition-transform duration-500 ease-out";
+              if (feedback === 'incorrect' && isSelected) statusClass = "bg-red-100 dark:bg-red-900/40 border-brand-red text-brand-red";
+              if (!feedback && isSelected) statusClass = "bg-blue-50 dark:bg-blue-900/40 border-brand-blue text-brand-blue";
 
               return (
                 <button
@@ -582,6 +677,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                 >
                   <span>{option}</span>
                   {feedback === 'correct' && isCorrect && <Check size={24} className="animate-bounce-short" />}
+                  {feedback === 'incorrect' && isSelected && <X size={24} />}
                 </button>
               )
             })}
@@ -591,21 +687,39 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
       {/* Footer Action */}
       <div className={`border-t-2 p-4 pb-safe transition-colors duration-300 ${
-        feedback === 'correct' ? 'bg-green-100 border-green-200' : 
-        feedback === 'incorrect' ? 'bg-red-100 border-red-200' : 'bg-white border-gray-200'
+        feedback === 'correct' ? 'bg-green-100 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 
+        feedback === 'incorrect' ? 'bg-red-100 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
       }`}>
-        <div className="max-w-lg mx-auto flex justify-between items-center">
+        <div className="max-w-lg mx-auto flex justify-between items-center gap-4">
           
           {feedback === 'correct' && (
-             <div className="flex items-center gap-3 text-brand-green font-bold text-xl animate-bounce-short">
-               <div className="bg-white p-2 rounded-full"><Check size={24} /></div>
-               <span>Excellent!</span>
+             <div className="flex flex-col gap-2 text-brand-green flex-1 min-w-0">
+               <div className="flex items-center gap-2 font-extrabold text-xl animate-bounce-short">
+                 <div className="bg-white dark:bg-gray-800 p-1 rounded-full shadow-sm"><Check size={24} /></div>
+                 <span>Excellent!</span>
+               </div>
+               {currentQ.explanation && (
+                 <div className="text-sm font-bold text-green-700 dark:text-green-300 leading-snug break-words">
+                   {currentQ.explanation}
+                 </div>
+               )}
              </div>
           )}
           {feedback === 'incorrect' && (
-             <div className="flex flex-col text-brand-red">
-               <div className="font-bold text-xl mb-1">Incorrect</div>
-               <div className="text-sm">Correct: {currentQ.correctAnswer}</div>
+             <div className="flex flex-col gap-2 text-brand-red flex-1 min-w-0">
+               <div className="flex items-center gap-2 font-extrabold text-xl">
+                 <div className="bg-white dark:bg-gray-800 p-1 rounded-full shadow-sm"><X size={24} /></div>
+                 <span>Incorrect</span>
+               </div>
+               <div className="text-sm font-bold leading-snug">
+                  <span className="opacity-80 uppercase text-xs tracking-wide block mb-0.5">Correct Answer:</span>
+                  {currentQ.correctAnswer}
+               </div>
+               {currentQ.explanation && (
+                 <div className="text-xs font-medium text-red-700 dark:text-red-300 leading-snug bg-white/50 dark:bg-black/10 p-2 rounded-lg">
+                   {currentQ.explanation}
+                 </div>
+               )}
              </div>
           )}
           
@@ -615,7 +729,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                   <Button 
                     variant="ghost" 
                     onClick={() => setShowSkipModal(true)}
-                    className="text-gray-400 hover:text-gray-600 font-extrabold uppercase tracking-widest"
+                    className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 font-extrabold uppercase tracking-widest"
                   >
                     Skip
                   </Button>
@@ -639,7 +753,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
           )}
 
           {feedback && (
-             <div className="ml-auto">
+             <div className="flex-shrink-0">
                <Button 
                  size="lg" 
                  variant={feedback === 'correct' ? 'primary' : 'danger'}
@@ -657,14 +771,14 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       {/* Skip Confirmation Modal */}
       {showSkipModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200 backdrop-blur-sm">
-           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center transform scale-100 transition-all border-2 border-gray-100">
+           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center transform scale-100 transition-all border-2 border-gray-100 dark:border-gray-700">
                <div className="mb-6 flex justify-center">
-                 <div className="bg-gray-50 p-4 rounded-full border-2 border-gray-100 shadow-sm">
-                    <ArrowRight size={40} className="text-gray-400" strokeWidth={2.5} />
+                 <div className="bg-gray-50 dark:bg-gray-700 p-4 rounded-full border-2 border-gray-100 dark:border-gray-600 shadow-sm">
+                    <ArrowRight size={40} className="text-gray-400 dark:text-gray-300" strokeWidth={2.5} />
                  </div>
                </div>
-               <h2 className="text-2xl font-extrabold text-gray-800 mb-3">Skip this question?</h2>
-               <p className="text-gray-500 font-bold mb-8 text-sm leading-relaxed">
+               <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white mb-3">Skip this question?</h2>
+               <p className="text-gray-500 dark:text-gray-400 font-bold mb-8 text-sm leading-relaxed">
                  You won't receive XP for this answer, but you can keep learning.
                </p>
                
@@ -672,7 +786,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                  <Button variant="secondary" size="lg" fullWidth onClick={handleSkipConfirmation} className="uppercase tracking-widest">
                    Yes, Skip
                  </Button>
-                 <Button variant="outline" size="lg" fullWidth onClick={() => setShowSkipModal(false)} className="uppercase tracking-widest border-2 border-gray-200 hover:bg-gray-50 shadow-none">
+                 <Button variant="outline" size="lg" fullWidth onClick={() => setShowSkipModal(false)} className="uppercase tracking-widest border-2 border-gray-200 hover:bg-gray-50 dark:border-gray-600 dark:hover:bg-gray-700 shadow-none dark:text-gray-300">
                    Cancel
                  </Button>
                </div>
@@ -683,14 +797,14 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       {/* Quit Confirmation Modal */}
       {showQuitModal && (
         <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/60 p-4 animate-in fade-in duration-200 backdrop-blur-sm">
-           <div className="bg-white rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center transform scale-100 transition-all border-2 border-gray-100">
+           <div className="bg-white dark:bg-gray-800 rounded-3xl p-6 w-full max-w-sm shadow-2xl text-center transform scale-100 transition-all border-2 border-gray-100 dark:border-gray-700">
                <div className="mb-6 flex justify-center">
-                 <div className="bg-red-50 p-4 rounded-full border-2 border-red-100 shadow-sm">
+                 <div className="bg-red-50 dark:bg-red-900/20 p-4 rounded-full border-2 border-red-100 dark:border-red-800 shadow-sm">
                     <AlertTriangle size={40} className="text-brand-red" strokeWidth={2.5} />
                  </div>
                </div>
-               <h2 className="text-2xl font-extrabold text-gray-800 mb-3">Quit this lesson?</h2>
-               <p className="text-gray-500 font-bold mb-8 text-sm leading-relaxed">
+               <h2 className="text-2xl font-extrabold text-gray-800 dark:text-white mb-3">Quit this lesson?</h2>
+               <p className="text-gray-500 dark:text-gray-400 font-bold mb-8 text-sm leading-relaxed">
                  You'll lose your progress for this session if you leave now.
                </p>
                
@@ -698,7 +812,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                  <Button variant="secondary" size="lg" fullWidth onClick={() => setShowQuitModal(false)} className="uppercase tracking-widest">
                    Keep Learning
                  </Button>
-                 <Button variant="outline" size="lg" fullWidth onClick={onExit} className="uppercase tracking-widest text-brand-red border-2 border-gray-200 hover:bg-red-50 hover:border-red-200 shadow-none">
+                 <Button variant="outline" size="lg" fullWidth onClick={onExit} className="uppercase tracking-widest text-brand-red border-2 border-gray-200 hover:bg-red-50 hover:border-red-200 dark:border-gray-600 dark:hover:bg-red-900/20 shadow-none">
                    End Session
                  </Button>
                </div>

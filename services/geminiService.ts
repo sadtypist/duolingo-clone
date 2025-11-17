@@ -40,10 +40,22 @@ export const generateLesson = async (
     - Focus on recognition and sound association using MULTIPLE_CHOICE and LISTENING types.
     `;
   } else if (isPractice) {
-     adaptiveContext = `This is a PRACTICE session. The user has struggled with: ${weakAreas.join(', ')}. Generate questions SPECIFICALLY testing these topics.`;
+     const topics = weakAreas.slice(-15).join(', '); // Focus on most recent struggles
+     if (topics.length > 0) {
+        adaptiveContext = `This is a TARGETED PRACTICE session. The user has explicitly struggled with: ${topics}. 
+        
+        CRITICAL INSTRUCTION: 
+        - Generate questions that focus HEAVILY on these specific weak areas.
+        - If the weak areas are vocabulary, use them in sentences.
+        - If they are grammar points, construct questions that test those specific rules.
+        - Prioritize reinforcing these concepts over introducing new ones.`;
+     } else {
+        adaptiveContext = `This is a general PRACTICE session. The user is doing well. 
+        Generate a comprehensive review of fundamental concepts appropriate for Level ${userLevel} to reinforce retention.`;
+     }
   } else {
      adaptiveContext = weakAreas.length > 0 
-      ? `The user is currently struggling with: ${weakAreas.join(', ')}. Focus some questions on these.`
+      ? `The user has some weak areas: ${weakAreas.slice(-5).join(', ')}. Include a few questions to review these, but primarily focus on new content for Level ${userLevel}.`
       : `The user is doing well. Introduce a mix of vocabulary and grammar appropriate for level ${userLevel}.`;
   }
 

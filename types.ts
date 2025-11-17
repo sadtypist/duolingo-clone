@@ -39,6 +39,8 @@ export interface UserPreferences {
   enableStreakFreeze: boolean;
   showCharacters: boolean;
   dailyGoalXp: number;
+  darkMode: boolean;
+  disableAnimations: boolean;
 }
 
 export interface UserProfile {

@@ -1,23 +1,11 @@
 
 import React from 'react';
 import { Home, User, Globe, Trophy, BookA, Settings } from 'lucide-react';
-import { UserProfile } from '../types'; // Added import for UserProfile type checking (implicitly used via props though prop not typed here yet, fixing logic below)
-import { getProfile } from '../services/storageService'; // We need to read current profile prefs if not passed. But better to use getProfile as a safe fallback if props aren't easy to drill immediately, though strict React data flow suggests props. 
-// However, Navigation is used in App.tsx which has user state. Let's check App.tsx... 
-// App.tsx passes `currentView` and `setView`. It does NOT pass `user`. 
-// To do this properly, I will assume we fetch the profile from storage or better, I will update App.tsx to pass user to Navigation if I could. 
-// BUT, per instructions I can only update files I provide.
-// I will modify Navigation to accept `userPreferences` or just `user`. 
-// Let's check the props in App.tsx... Navigation is called as `<Navigation currentView={currentView} setView={setCurrentView} />`
-// I need to update App.tsx to pass user, OR read from localStorage here.
-// Reading from localStorage is safer to avoid changing App.tsx signature widely if I don't have to, but updating App.tsx is cleaner. 
-// I will update App.tsx as well to pass `user`.
 
-// Updating interfaces:
 interface NavigationProps {
   currentView: string;
   setView: (view: string) => void;
-  userPreferences?: { showCharacters: boolean }; // Optional to avoid breaking if undefined during initial render
+  userPreferences?: { showCharacters: boolean }; 
 }
 
 export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, userPreferences }) => {
@@ -34,8 +22,8 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, us
 
   return (
     <nav className="
-      fixed bottom-0 left-0 w-full bg-white border-t border-gray-200 pb-safe z-50 
-      md:relative md:w-64 md:h-full md:border-r md:border-t-0 md:flex md:flex-col md:p-4
+      fixed bottom-0 left-0 w-full bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 pb-safe z-50 
+      md:relative md:w-64 md:h-full md:border-r md:border-t-0 md:flex md:flex-col md:p-4 transition-colors duration-300
     ">
       {/* Mobile Layout */}
       <div className="flex justify-around items-center h-20 max-w-md mx-auto md:hidden overflow-x-auto">
@@ -47,10 +35,10 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, us
               key={item.id}
               onClick={() => setView(item.id)}
               className={`flex flex-col items-center justify-center min-w-[60px] h-full space-y-1 ${
-                isActive ? 'text-brand-blue' : 'text-gray-400 hover:text-gray-600'
+                isActive ? 'text-brand-blue' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
               }`}
             >
-              <div className={`p-1 rounded-lg transition-all ${isActive ? 'bg-blue-50' : ''}`}>
+              <div className={`p-1 rounded-lg transition-all ${isActive ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
                 <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
               </div>
               <span className="text-[10px] font-bold uppercase">{item.label}</span>
@@ -76,8 +64,8 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, us
                   className={`
                     flex items-center w-full p-4 rounded-xl transition-all text-left gap-4 border-2
                     ${isActive 
-                      ? 'bg-blue-50 border-brand-blue text-brand-blue' 
-                      : 'bg-transparent border-transparent text-gray-500 hover:bg-gray-100'}
+                      ? 'bg-blue-50 dark:bg-blue-900/20 border-brand-blue text-brand-blue' 
+                      : 'bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
                   `}
                 >
                   <Icon size={24} strokeWidth={isActive ? 3 : 2} />
