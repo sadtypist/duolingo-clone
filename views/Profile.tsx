@@ -107,8 +107,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
       {/* AI Generation Modal */}
       {showAiModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
-              <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-md shadow-2xl border-2 border-brand-blue/20 overflow-hidden">
-                  <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+              <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-md shadow-2xl border-2 border-brand-blue/20 overflow-hidden flex flex-col max-h-[90vh]">
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center flex-shrink-0">
                       <h3 className="font-black text-lg flex items-center gap-2 text-gray-800 dark:text-white">
                           <Sparkles className="text-brand-blue" size={20} /> Design Mascot
                       </h3>
@@ -117,8 +117,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                       </button>
                   </div>
                   
-                  <div className="p-6 flex flex-col gap-4">
-                      <div className="relative aspect-square w-full bg-gray-50 dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center overflow-hidden">
+                  <div className="p-6 flex flex-col gap-4 overflow-y-auto">
+                      <div className="relative aspect-square w-full bg-gray-50 dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {isGenerating ? (
                               <div className="flex flex-col items-center text-brand-blue animate-pulse">
                                   <Loader2 size={48} className="animate-spin mb-2" />
@@ -134,7 +134,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                           )}
                       </div>
 
-                      <div>
+                      <div className="flex-shrink-0">
                           <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Prompt</label>
                           <textarea 
                               className="w-full p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium focus:border-brand-blue outline-none resize-none h-28 dark:text-white"
@@ -144,7 +144,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                           />
                       </div>
                       
-                      <div className="flex gap-3 pt-2">
+                      <div className="flex gap-3 pt-2 flex-shrink-0">
                           <Button 
                               fullWidth 
                               variant="secondary" 
