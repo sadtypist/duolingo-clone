@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '../components/Button';
 import { Globe, Sparkles, ArrowRight, Mail, Lock, User, AtSign, ChevronLeft, Camera, UserCircle } from 'lucide-react';
@@ -238,7 +237,7 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
 
                 <div className="mb-6">
                     <div className="flex flex-col items-center mb-4">
-                        <div className="w-24 h-24 rounded-full border-4 border-brand-blue bg-blue-50 flex items-center justify-center text-6xl overflow-hidden shadow-md mb-2">
+                        <div className="w-24 h-24 rounded-full border-4 border-brand-blue bg-emerald-50 flex items-center justify-center text-6xl overflow-hidden shadow-md mb-2">
                             {selectedAvatar.startsWith('data:') ? (
                                 <img src={selectedAvatar} className="w-full h-full object-cover" alt="Avatar Preview" />
                             ) : (
@@ -289,7 +288,7 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                     </div>
                 </div>
 
-                <Button fullWidth size="lg" onClick={handleSignupFinal} className="bg-brand-green shadow-[0_4px_0_0_#46a302]">Start Learning!</Button>
+                <Button fullWidth size="lg" onClick={handleSignupFinal} className="bg-brand-green shadow-[0_4px_0_0_#059669]">Start Learning!</Button>
             </div>
         </div>
       )}

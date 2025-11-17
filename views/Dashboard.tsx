@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
 import { LANGUAGES, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
 import { Button } from '../components/Button';
-import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Loader2, AlertCircle, Heart, Clock } from 'lucide-react';
+import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Loader2, AlertCircle, Heart, Clock, Check } from 'lucide-react';
 import { generateLesson } from '../services/geminiService';
 import { saveOfflineLesson, getOfflineLessonCount } from '../services/storageService';
 
@@ -20,6 +19,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
   const [showEnergyModal, setShowEnergyModal] = useState(false);
 
   const currentLang = LANGUAGES.find(l => l.code === user.currentLanguageCode);
+  const nativeLangName = LANGUAGES.find(l => l.code === (user.nativeLanguageCode || 'en'))?.name || 'English';
   const progress = user.currentLanguageCode ? user.progress[user.currentLanguageCode] : null;
   const offlineCount = user.currentLanguageCode ? getOfflineLessonCount(user.currentLanguageCode) : 0;
   const totalXP = (Object.values(user.progress) as LanguageProgress[]).reduce((acc, p) => acc + p.xp, 0);
@@ -78,7 +78,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
       try {
           // Download 2 lessons
           for (let i = 0; i < 2; i++) {
-              const lesson = await generateLesson(currentLang.name, level, [], false);
+              const lesson = await generateLesson(currentLang.name, nativeLangName, level, [], false);
               if (lesson) {
                   saveOfflineLesson({ ...lesson, savedAt: new Date().toISOString(), languageCode: currentLang.code });
               }
@@ -158,7 +158,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
              </div>
 
              {/* XP Display */}
-             <div className="flex items-center text-brand-blue font-bold px-3 py-1 rounded-full bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800" title="Total XP">
+             <div className="flex items-center text-brand-blue font-bold px-3 py-1 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800" title="Total XP">
                 <Zap size={18} className="mr-1" fill="currentColor" />
                 {totalXP}
              </div>
@@ -227,7 +227,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                      className={`
                        w-20 h-20 rounded-full flex items-center justify-center border-b-4 text-white text-3xl shadow-lg transition-all
                        ${isCompleted ? 'bg-brand-yellow border-yellow-600' : ''}
-                       ${isCurrent ? 'bg-brand-green border-brand-green-dark animate-bounce-short cursor-pointer ring-4 ring-green-100 dark:ring-green-900' : ''}
+                       ${isCurrent ? 'bg-brand-green border-brand-green-dark animate-bounce-short cursor-pointer ring-4 ring-emerald-100 dark:ring-emerald-900' : ''}
                        ${isLocked ? 'bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 cursor-default' : ''}
                      `}
                    >
@@ -255,21 +255,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                    <h3 className="font-bold text-gray-700 dark:text-gray-200 text-lg">Daily Goals</h3>
                    <Target className="text-brand-blue" />
                 </div>
-                <div className="space-y-4">
-                   {user.dailyGoals.map(goal => (
-                      <div key={goal.id}>
-                         <div className="flex justify-between text-sm font-bold text-gray-600 dark:text-gray-400 mb-1">
-                            <span>{goal.title}</span>
-                            <span>{goal.current}/{goal.target}</span>
-                         </div>
-                         <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-3">
-                            <div 
-                               className={`h-3 rounded-full transition-all ${goal.completed ? 'bg-brand-yellow' : 'bg-brand-blue'}`}
-                               style={{ width: `${Math.min((goal.current / goal.target) * 100, 100)}%` }}
-                            ></div>
-                         </div>
-                      </div>
-                   ))}
+                <div className="space-y-3">
+                   {user.dailyGoals.map(goal => {
+                      const progressPercent = Math.min((goal.current / goal.target) * 100, 100);
+                      return (
+                        <div key={goal.id} className={`p-3 rounded-xl border-2 transition-all ${goal.completed ? 'border-brand-yellow bg-yellow-50 dark:bg-yellow-900/20' : 'border-transparent bg-gray-50 dark:bg-gray-700/50'}`}>
+                            <div className="flex justify-between items-center mb-2">
+                                <span className={`text-sm font-extrabold ${goal.completed ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                                    {goal.title}
+                                </span>
+                                {goal.completed ? (
+                                    <div className="bg-brand-yellow text-white p-0.5 rounded-full flex items-center justify-center w-5 h-5">
+                                        <Check size={14} strokeWidth={4} />
+                                    </div>
+                                ) : (
+                                    <span className="text-xs font-black text-gray-400">{goal.current}/{goal.target}</span>
+                                )}
+                            </div>
+                            
+                            {/* Progress Bar */}
+                            <div className={`w-full rounded-full h-2.5 overflow-hidden ${goal.completed ? 'bg-yellow-200 dark:bg-yellow-900' : 'bg-gray-200 dark:bg-gray-600'}`}>
+                                <div 
+                                className={`h-full rounded-full transition-all duration-1000 ease-out ${goal.completed ? 'bg-brand-yellow' : 'bg-brand-blue'}`}
+                                style={{ width: `${progressPercent}%` }}
+                                ></div>
+                            </div>
+                        </div>
+                      );
+                   })}
                 </div>
              </div>
 
@@ -281,7 +294,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                 </div>
                 <div className="space-y-3">
                    {leaderboard.map((p, i) => (
-                      <div key={i} className={`flex items-center p-2 rounded-xl ${p.isUser ? 'bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800' : ''}`}>
+                      <div key={i} className={`flex items-center p-2 rounded-xl ${p.isUser ? 'bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800' : ''}`}>
                          <div className="font-bold text-gray-400 w-6">{i + 1}</div>
                          <div className="w-8 h-8 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center mr-3">
                            {p.avatar.startsWith('data:') ? <img src={p.avatar} className="w-full h-full rounded-full" /> : p.avatar}

@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { UserProfile } from '../types';
 import { Settings as SettingsIcon, BrainCircuit, Volume2, BookOpen, Flame, Target, Moon, ZapOff } from 'lucide-react';
@@ -93,7 +92,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
           
           <div className="bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-2xl p-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-4">
-              <div className="bg-blue-100 dark:bg-blue-900/50 p-3 rounded-xl text-brand-blue dark:text-blue-400">
+              <div className="bg-emerald-100 dark:bg-emerald-900/50 p-3 rounded-xl text-brand-blue dark:text-emerald-400">
                 <Volume2 size={24} />
               </div>
               <div>
@@ -202,7 +201,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
                    <button 
                       key={val}
                       onClick={() => setNumericPreference('dailyGoalXp', val)}
-                      className={`flex-1 py-2 rounded-lg font-bold transition-all ${user.preferences?.dailyGoalXp === val ? 'bg-white dark:bg-gray-600 text-brand-blue dark:text-blue-300 shadow-sm' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                      className={`flex-1 py-2 rounded-lg font-bold transition-all ${user.preferences?.dailyGoalXp === val ? 'bg-white dark:bg-gray-600 text-brand-blue dark:text-emerald-300 shadow-sm' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
                    >
                       {val} XP
                    </button>

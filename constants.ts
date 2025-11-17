@@ -2,6 +2,11 @@
 import { Language, UserProfile, Achievement, DailyGoal, CharacterGroup } from './types';
 
 export const LANGUAGES: Language[] = [
+  { code: 'en-US', name: 'English (US)', flag: '🇺🇸', countryCode: 'us' },
+  { code: 'en-GB', name: 'English (UK)', flag: '🇬🇧', countryCode: 'gb' },
+  { code: 'en-AU', name: 'English (AU)', flag: '🇦🇺', countryCode: 'au' },
+  { code: 'en-CA', name: 'English (CA)', flag: '🇨🇦', countryCode: 'ca' },
+  { code: 'en-IN', name: 'English (IN)', flag: '🇮🇳', countryCode: 'in' },
   { code: 'es', name: 'Spanish', flag: '🇪🇸', countryCode: 'es' },
   { code: 'fr', name: 'French', flag: '🇫🇷', countryCode: 'fr' },
   { code: 'de', name: 'German', flag: '🇩🇪', countryCode: 'de' },
@@ -327,6 +332,7 @@ export const DEFAULT_USER: UserProfile = {
   id: 'guest',
   name: '',
   avatar: '🧑',
+  nativeLanguageCode: 'en-US', // Default to US English
   joinDate: new Date().toISOString(),
   lastActiveDate: todayStr,
   streak: 0,

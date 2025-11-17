@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Home, User, Globe, Trophy, BookA, Settings } from 'lucide-react';
 
@@ -38,7 +37,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, us
                 isActive ? 'text-brand-blue' : 'text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300'
               }`}
             >
-              <div className={`p-1 rounded-lg transition-all ${isActive ? 'bg-blue-50 dark:bg-blue-900/20' : ''}`}>
+              <div className={`p-1 rounded-lg transition-all ${isActive ? 'bg-emerald-50 dark:bg-emerald-900/20' : ''}`}>
                 <Icon size={24} strokeWidth={isActive ? 2.5 : 2} />
               </div>
               <span className="text-[10px] font-bold uppercase">{item.label}</span>
@@ -64,7 +63,7 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, us
                   className={`
                     flex items-center w-full p-4 rounded-xl transition-all text-left gap-4 border-2
                     ${isActive 
-                      ? 'bg-blue-50 dark:bg-blue-900/20 border-brand-blue text-brand-blue' 
+                      ? 'bg-emerald-50 dark:bg-emerald-900/20 border-brand-blue text-brand-blue' 
                       : 'bg-transparent border-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'}
                   `}
                 >

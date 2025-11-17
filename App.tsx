@@ -22,6 +22,7 @@ const App: React.FC = () => {
   const [focusCharacters, setFocusCharacters] = useState<string[]>([]);
   const [showSyncToast, setShowSyncToast] = useState(false);
   const [showLanding, setShowLanding] = useState(!user.hasCompletedOnboarding);
+  const [lessonId, setLessonId] = useState(0); // Used to force remount of LessonView
 
   // Effect to apply Dark Mode and Animation preferences globally
   useEffect(() => {
@@ -119,7 +120,7 @@ const App: React.FC = () => {
       };
     }
     handleUpdateUser(updatedUser);
-    setCurrentView('home');
+    // Removed immediate navigation to 'home' to allow user to see selection state
   };
 
   const handleStartLesson = () => {
@@ -128,6 +129,7 @@ const App: React.FC = () => {
         setUser(updatedProfile);
         setIsPracticeMode(false);
         setFocusCharacters([]);
+        setLessonId(prev => prev + 1);
         setIsLessonActive(true);
     }
   };
@@ -138,6 +140,7 @@ const App: React.FC = () => {
         setUser(updatedProfile);
         setIsPracticeMode(true);
         setFocusCharacters([]);
+        setLessonId(prev => prev + 1);
         setIsLessonActive(true);
     }
   };
@@ -148,6 +151,7 @@ const App: React.FC = () => {
         setUser(updatedProfile);
         setIsPracticeMode(false);
         setFocusCharacters(characters);
+        setLessonId(prev => prev + 1);
         setIsLessonActive(true);
     }
   };
@@ -159,6 +163,17 @@ const App: React.FC = () => {
     setFocusCharacters([]);
   };
 
+  const handleReviewWeakAreas = (updatedUser: UserProfile) => {
+    setUser(updatedUser);
+    saveProfile(updatedUser); // Ensure progress is saved
+    
+    // Start practice mode immediately
+    setIsPracticeMode(true);
+    setFocusCharacters([]);
+    setLessonId(prev => prev + 1); // Force remount for new lesson generation
+    setIsLessonActive(true);
+  };
+
   // Guest Check
   if (showLanding) {
     return <Landing user={user} onLogin={handleLogin} onContinueAsGuest={handleContinueAsGuest} />;
@@ -168,9 +183,11 @@ const App: React.FC = () => {
   if (isLessonActive) {
     return (
       <LessonView 
+        key={lessonId} // Force remount when starting new lesson
         user={user} 
         onComplete={handleFinishLesson} 
         onExit={() => setIsLessonActive(false)} 
+        onReviewWeakAreas={handleReviewWeakAreas}
         isPractice={isPracticeMode}
         focusCharacters={focusCharacters}
       />
@@ -180,7 +197,14 @@ const App: React.FC = () => {
   const renderView = () => {
     switch (currentView) {
       case 'languages':
-        return <LanguageSelection user={user} onSelectLanguage={handleSelectLanguage} />;
+        return (
+          <LanguageSelection 
+            user={user} 
+            onSelectLanguage={handleSelectLanguage} 
+            onUpdateUser={handleUpdateUser} 
+            onContinue={() => setCurrentView('home')}
+          />
+        );
       case 'profile':
         return (
             <Profile user={user} onUpdateUser={handleUpdateUser} onLogout={handleLogout} />

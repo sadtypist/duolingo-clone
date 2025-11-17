@@ -50,6 +50,7 @@ export interface UserProfile {
   username?: string; // Display ID
   name: string;
   avatar: string; // base64 or emoji
+  nativeLanguageCode: string; // The user's first language (for UI and translations)
   joinDate: string;
   lastActiveDate: string; // YYYY-MM-DD
   streak: number;

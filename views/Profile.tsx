@@ -3,7 +3,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
 import { LANGUAGES, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus, Calendar, AlertCircle } from 'lucide-react';
+import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus, Calendar, AlertCircle, LogOut } from 'lucide-react';
 import { saveProfile } from '../services/storageService';
 
 interface ProfileProps {
@@ -78,13 +78,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
   return (
     <div className="h-full overflow-y-auto bg-white dark:bg-gray-800 transition-colors duration-300">
       <div className="p-6 pb-24 max-w-2xl mx-auto relative">
-        <button 
-          onClick={onLogout} 
-          className="absolute top-6 right-6 text-gray-400 hover:text-red-500 font-bold text-xs uppercase tracking-widest z-10"
-        >
-          Log Out
-        </button>
-
+        
         {/* Guest Banner */}
         {user.isGuest && (
           <div className="bg-brand-blue/10 border-2 border-brand-blue rounded-2xl p-6 mb-6 flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left dark:bg-brand-blue/20">
@@ -115,7 +109,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
               {user.avatar.startsWith('data:') ? (
                 <img src={user.avatar} alt="Avatar" className="w-full h-full object-cover" />
               ) : (
-                <div className="w-full h-full flex items-center justify-center text-6xl bg-blue-50 dark:bg-gray-700">
+                <div className="w-full h-full flex items-center justify-center text-6xl bg-emerald-50 dark:bg-gray-700">
                   {user.avatar}
                 </div>
               )}
@@ -212,8 +206,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
         {/* Global Stats */}
         <div className="bg-brand-blue/10 dark:bg-brand-blue/20 border-2 border-brand-blue/20 rounded-2xl p-6 mb-8 flex items-center justify-between">
            <div>
-              <h2 className="text-brand-blue-dark dark:text-blue-300 font-extrabold uppercase tracking-widest text-xs mb-1">Language Score</h2>
-              <div className="text-4xl font-black text-brand-blue dark:text-blue-400">{languageScore}</div>
+              <h2 className="text-brand-blue-dark dark:text-emerald-300 font-extrabold uppercase tracking-widest text-xs mb-1">Language Score</h2>
+              <div className="text-4xl font-black text-brand-blue dark:text-emerald-400">{languageScore}</div>
            </div>
            <BarChart2 size={48} className="text-brand-blue opacity-50" />
         </div>
@@ -342,6 +336,24 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
               </div>
           )}
         </div>
+
+        {/* Account Management Section */}
+        <div className="mt-12 border-t-2 border-gray-100 dark:border-gray-700 pt-8">
+            <h2 className="text-xl font-extrabold text-gray-700 dark:text-gray-200 mb-4">Account</h2>
+            <Button 
+                onClick={onLogout} 
+                variant="outline"
+                fullWidth
+                size="lg"
+                className="text-brand-red dark:text-red-400 border-gray-200 dark:border-gray-700 hover:bg-red-50 dark:hover:bg-red-900/20 hover:border-red-200 shadow-sm active:shadow-none h-14"
+            >
+                <span className="flex items-center gap-3 uppercase tracking-widest font-black">
+                    <LogOut size={20} strokeWidth={3} />
+                    Log Out
+                </span>
+            </Button>
+        </div>
+
       </div>
     </div>
   );

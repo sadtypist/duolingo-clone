@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Language, LanguageProgress } from '../types';
 import { CheckCircle } from 'lucide-react';
@@ -17,7 +16,7 @@ export const LanguageCard: React.FC<LanguageCardProps> = ({ language, progress, 
       className={`
         relative flex flex-col items-center p-4 rounded-2xl border-2 cursor-pointer transition-all
         ${isSelected 
-          ? 'border-brand-blue bg-blue-50 shadow-[0_4px_0_0_#1899d6]' 
+          ? 'border-brand-blue bg-emerald-50 shadow-[0_4px_0_0_#064e3b]' 
           : 'border-gray-200 bg-white hover:border-gray-300 shadow-[0_4px_0_0_#e5e7eb] hover:bg-gray-50'}
         active:translate-y-[4px] active:shadow-none
       `}

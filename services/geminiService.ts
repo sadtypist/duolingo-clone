@@ -13,6 +13,7 @@ if (API_KEY) {
 
 export const generateLesson = async (
   languageName: string, 
+  nativeLanguageName: string,
   userLevel: number, 
   weakAreas: string[] = [], 
   isPractice: boolean = false,
@@ -70,15 +71,15 @@ export const generateLesson = async (
       }
   }
 
-  const prompt = `Create a ${difficulty} ${isPractice ? 'practice review' : 'dynamic lesson'} for learning ${languageName} (Level ${userLevel}/10).
+  const prompt = `Create a ${difficulty} ${isPractice ? 'practice review' : 'dynamic lesson'} for learning ${languageName} from ${nativeLanguageName} (Level ${userLevel}/10).
   ${adaptiveContext}
   ${difficultyInstruction}
   
   Generate exactly 5 questions with a mix of these types:
   1. MULTIPLE_CHOICE: Standard grammar/vocab question.
   2. FILL_BLANK: A sentence with a missing word indicated by '____'. Options are words to fill it.
-  3. TRANSLATE: A short phrase or basic sentence in English (or target language) to translate.
-  4. SENTENCE_TRANSLATE: A full, slightly more complex sentence in the target language to translate to English (or vice versa).
+  3. TRANSLATE: A short phrase or basic sentence in ${nativeLanguageName} (or target language) to translate.
+  4. SENTENCE_TRANSLATE: A full, slightly more complex sentence in the target language to translate to ${nativeLanguageName} (or vice versa).
   5. LISTENING: 'questionText' is the phrase the user will hear (in ${languageName}). 'options' are transcriptions or translations.
   6. SPEAKING: 'questionText' is the phrase the user must read aloud (in ${languageName}). 'correctAnswer' is the text they must say. Options can be ignored or empty.
 

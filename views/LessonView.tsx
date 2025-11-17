@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Lesson, QuestionType } from '../types';
 import { generateLesson, validateTranslation } from '../services/geminiService';
 import { completeLesson, popOfflineLesson } from '../services/storageService';
 import { LANGUAGES, XP_PER_LESSON, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame, ArrowRight, Lightbulb, Zap, Download } from 'lucide-react';
+import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame, ArrowRight, Lightbulb, Zap, Download, CheckCircle, AlertCircle } from 'lucide-react';
 
 // Polyfill for SpeechRecognition types
 declare global {
@@ -19,11 +18,12 @@ interface LessonViewProps {
   user: UserProfile;
   onComplete: (updatedUser: UserProfile) => void;
   onExit: () => void;
+  onReviewWeakAreas?: (updatedUser: UserProfile) => void;
   isPractice?: boolean;
   focusCharacters?: string[];
 }
 
-export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit, isPractice = false, focusCharacters = [] }) => {
+export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit, onReviewWeakAreas, isPractice = false, focusCharacters = [] }) => {
   // Determine initial difficulty if auto-set
   const getInitialDifficulty = () => {
     // For character lessons, bypass difficulty selection and default to Easy/Standard
@@ -68,9 +68,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     totalQuestions: number;
     newAchievements: string[];
     updatedProfile: UserProfile;
+    weakAreas: string[];
+    strongAreas: string[];
   } | null>(null);
 
   const currentLang = LANGUAGES.find(l => l.code === user.currentLanguageCode);
+  const nativeLangName = LANGUAGES.find(l => l.code === (user.nativeLanguageCode || 'en'))?.name || 'English';
+  
   const progress = user.currentLanguageCode ? user.progress[user.currentLanguageCode] : undefined;
   const hasWeakAreas = (progress?.weakAreas?.length || 0) > 0;
 
@@ -106,6 +110,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         try {
           const newLesson = await generateLesson(
             currentLang.name, 
+            nativeLangName, // Pass native language name
             userLevel, 
             weakAreas, 
             isPractice, 
@@ -134,7 +139,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       }
       window.speechSynthesis.cancel();
     };
-  }, [currentLang, isPractice, focusCharacters, difficulty]);
+  }, [currentLang, isPractice, focusCharacters, difficulty, nativeLangName]);
 
   // TTS Helper
   const speak = (text: string, langCode: string = 'en-US') => {
@@ -304,12 +309,18 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       strongTopicsDetected: correctQuestions
     }, isPractice);
 
+    // Deduplicate and segregate topics
+    const uniqueWeak = [...new Set(incorrectQuestions)];
+    const uniqueStrong = [...new Set(correctQuestions)].filter(t => !uniqueWeak.includes(t));
+
     setLessonResult({
         xpGained: xp,
         correctCount: correctCount,
         totalQuestions: lesson.questions.length,
         newAchievements: result.newAchievements,
-        updatedProfile: result.profile
+        updatedProfile: result.profile,
+        weakAreas: uniqueWeak,
+        strongAreas: uniqueStrong
     });
 
     if (user.preferences?.enableSoundEffects) {
@@ -341,12 +352,12 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                    <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-green-100 text-left">Relaxed pace with simple concepts.</p>
                 </button>
 
-                <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-blue-50 dark:bg-blue-900/20 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
+                <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-emerald-50 dark:bg-emerald-900/20 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                       <span className="text-xl font-black text-brand-blue-dark dark:text-blue-300 group-hover:text-white uppercase tracking-wide">Medium</span>
+                       <span className="text-xl font-black text-brand-blue-dark dark:text-emerald-300 group-hover:text-white uppercase tracking-wide">Medium</span>
                        <Target className="text-brand-blue group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-blue-100 text-left">Standard challenge for your level.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-emerald-100 text-left">Standard challenge for your level.</p>
                 </button>
 
                 <button onClick={() => setDifficulty('Hard')} className="group relative p-6 rounded-3xl border-b-4 border-brand-red bg-red-50 dark:bg-red-900/20 hover:bg-brand-red active:border-b-0 active:translate-y-1 transition-all">
@@ -398,9 +409,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
     return (
       <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg min-h-screen p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-         <div className="flex-1 flex flex-col items-center justify-center text-center">
+         <div className="flex-1 flex flex-col items-center text-center overflow-y-auto pb-4">
             
-            <div className="relative mb-6">
+            <div className="relative mb-6 mt-8">
                 <div className="absolute inset-0 bg-yellow-100 dark:bg-yellow-900/40 rounded-full blur-2xl opacity-60 animate-pulse"></div>
                 <Trophy size={120} className="text-brand-yellow relative z-10" strokeWidth={1.5} />
             </div>
@@ -411,6 +422,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                 <span>+{lessonResult.xpGained} XP Earned</span>
             </div>
 
+            {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-4 w-full mb-8">
                 <div className="bg-gray-50 dark:bg-gray-700 border-2 border-gray-100 dark:border-gray-600 rounded-2xl p-4 text-center">
                     <div className="text-sm font-bold text-gray-400 uppercase mb-1">Accuracy</div>
@@ -421,6 +433,44 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                     <div className="text-3xl font-black text-brand-green">{lessonResult.correctCount}</div>
                 </div>
             </div>
+
+            {/* Performance Analysis */}
+            {(lessonResult.strongAreas.length > 0 || lessonResult.weakAreas.length > 0) && (
+              <div className="w-full mb-6 text-left">
+                 <h3 className="text-center text-gray-400 font-bold uppercase text-xs tracking-widest mb-4">Performance Analysis</h3>
+                 <div className="space-y-4">
+                    {lessonResult.strongAreas.length > 0 && (
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900 rounded-xl p-4">
+                         <div className="flex items-center gap-2 mb-2 text-brand-green font-extrabold uppercase text-sm">
+                            <CheckCircle size={16} /> Strengths
+                         </div>
+                         <div className="flex flex-wrap gap-2">
+                            {lessonResult.strongAreas.map(t => (
+                               <span key={t} className="px-2 py-1 bg-white dark:bg-green-800 text-green-700 dark:text-green-200 text-xs font-bold rounded-md shadow-sm">
+                                  {t}
+                               </span>
+                            ))}
+                         </div>
+                      </div>
+                    )}
+                    
+                    {lessonResult.weakAreas.length > 0 && (
+                      <div className="bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900 rounded-xl p-4">
+                         <div className="flex items-center gap-2 mb-2 text-brand-red font-extrabold uppercase text-sm">
+                            <AlertCircle size={16} /> Focus Areas
+                         </div>
+                         <div className="flex flex-wrap gap-2">
+                            {lessonResult.weakAreas.map(t => (
+                               <span key={t} className="px-2 py-1 bg-white dark:bg-red-800 text-red-700 dark:text-red-200 text-xs font-bold rounded-md shadow-sm">
+                                  {t}
+                               </span>
+                            ))}
+                         </div>
+                      </div>
+                    )}
+                 </div>
+              </div>
+            )}
 
             {lessonResult.newAchievements.length > 0 && (
                 <div className="w-full mb-6">
@@ -444,10 +494,28 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
             )}
          </div>
 
-         <div className="w-full pt-6 border-t border-gray-100 dark:border-gray-700">
-             <Button fullWidth size="lg" onClick={() => onComplete(lessonResult.updatedProfile)}>
-                 Continue
-             </Button>
+         <div className="w-full pt-4 border-t border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
+             <div className="flex flex-col gap-3">
+                {onReviewWeakAreas && lessonResult.weakAreas.length > 0 && (
+                  <Button 
+                    fullWidth 
+                    size="lg" 
+                    variant="practice"
+                    onClick={() => onReviewWeakAreas(lessonResult.updatedProfile)}
+                    className="shadow-[0_4px_0_0_#7e22ce]"
+                  >
+                    Review Weak Areas
+                  </Button>
+                )}
+                <Button 
+                  fullWidth 
+                  size="lg" 
+                  onClick={() => onComplete(lessonResult.updatedProfile)}
+                  variant="primary"
+                >
+                  Continue
+                </Button>
+             </div>
          </div>
       </div>
     );
@@ -533,7 +601,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
              <div className="flex flex-col items-center">
                <button 
                  onClick={() => speak(currentQ.questionText, currentLang.code)}
-                 className="w-32 h-32 rounded-2xl bg-brand-blue text-white flex items-center justify-center shadow-[0_6px_0_0_#1899d6] active:translate-y-[6px] active:shadow-none transition-all mb-6"
+                 className="w-32 h-32 rounded-2xl bg-brand-blue text-white flex items-center justify-center shadow-[0_6px_0_0_#064e3b] active:translate-y-[6px] active:shadow-none transition-all mb-6"
                >
                   <Volume2 size={48} />
                </button>
@@ -543,7 +611,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                 {/* Universal Speaker Icon for all non-listening types */}
                <button 
                  onClick={() => speak(currentQ.questionText, currentLang.code)} 
-                 className="mt-1 p-3 rounded-xl bg-brand-blue text-white shadow-[0_2px_0_0_#1899d6] active:shadow-none active:translate-y-[2px] transition-all flex-shrink-0"
+                 className="mt-1 p-3 rounded-xl bg-brand-blue text-white shadow-[0_2px_0_0_#064e3b] active:shadow-none active:translate-y-[2px] transition-all flex-shrink-0"
                  title="Read aloud"
                >
                  <Volume2 size={20} />
@@ -575,13 +643,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                         onClick={() => setShowHint(true)}
                         className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-brand-blue transition-colors group"
                     >
-                        <div className="p-1 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+                        <div className="p-1 rounded-full group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
                             <Lightbulb size={18} />
                         </div>
                         <span>Need a hint?</span>
                     </button>
                 ) : (
-                    <div className="inline-flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-brand-blue/20 px-4 py-3 rounded-xl text-brand-blue animate-in fade-in slide-in-from-top-2">
+                    <div className="inline-flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/20 border border-brand-blue/20 px-4 py-3 rounded-xl text-brand-blue animate-in fade-in slide-in-from-top-2">
                         <Lightbulb size={18} className="flex-shrink-0 mt-0.5" />
                         <div className="flex flex-col">
                              {currentQ.topic && (
@@ -603,7 +671,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         {/* Input Area */}
         {isSpeaking ? (
           <div className="flex flex-col items-center gap-6">
-             <div className={`p-4 w-full min-h-[80px] rounded-2xl border-2 ${spokenText ? 'border-brand-blue bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'} flex items-center justify-center text-lg font-semibold text-center dark:text-white`}>
+             <div className={`p-4 w-full min-h-[80px] rounded-2xl border-2 ${spokenText ? 'border-brand-blue bg-emerald-50 dark:bg-emerald-900/20' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'} flex items-center justify-center text-lg font-semibold text-center dark:text-white`}>
                {spokenText || "Tap mic to speak..."}
              </div>
              
@@ -628,7 +696,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                placeholder="Type or speak your translation..."
                className={`
                  w-full p-4 pb-12 rounded-xl border-2 min-h-[120px] text-lg font-medium resize-none outline-none transition-all dark:text-white
-                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 dark:bg-green-900/20 text-brand-green-dark dark:text-green-300 scale-105 ring-4 ring-green-200 dark:ring-green-900 shadow-lg' : 
+                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 dark:bg-green-900/20 text-emerald-800 dark:text-green-300 scale-105 ring-4 ring-green-200 dark:ring-green-900 shadow-lg' : 
                    feedback === 'incorrect' ? 'border-brand-red bg-red-50 dark:bg-red-900/20 text-brand-red' : 
                    'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:border-brand-blue focus:bg-white dark:focus:bg-gray-800 text-gray-700'}
                `}
@@ -657,9 +725,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
               
               // Visual states for feedback
               let statusClass = "border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white";
-              if (feedback === 'correct' && isCorrect) statusClass = "bg-green-100 dark:bg-green-900/40 border-brand-green text-brand-green-dark dark:text-green-300 ring-4 ring-green-200 dark:ring-green-900 scale-105 shadow-lg z-10 transition-transform duration-500 ease-out";
+              if (feedback === 'correct' && isCorrect) statusClass = "bg-green-100 dark:bg-green-900/40 border-brand-green text-emerald-800 dark:text-green-300 ring-4 ring-green-200 dark:ring-green-900 scale-105 shadow-lg z-10 transition-transform duration-500 ease-out";
               if (feedback === 'incorrect' && isSelected) statusClass = "bg-red-100 dark:bg-red-900/40 border-brand-red text-brand-red";
-              if (!feedback && isSelected) statusClass = "bg-blue-50 dark:bg-blue-900/40 border-brand-blue text-brand-blue";
+              if (!feedback && isSelected) statusClass = "bg-emerald-50 dark:bg-emerald-900/40 border-brand-blue text-brand-blue";
 
               return (
                 <button
@@ -758,7 +826,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                  size="lg" 
                  variant={feedback === 'correct' ? 'primary' : 'danger'}
                  onClick={handleNext}
-                 className={feedback === 'correct' ? 'bg-brand-green shadow-[0_4px_0_0_#46a302]' : 'bg-brand-red shadow-[0_4px_0_0_#d63030]'}
+                 className={feedback === 'correct' ? 'bg-brand-green shadow-[0_4px_0_0_#059669]' : 'bg-brand-red shadow-[0_4px_0_0_#b91c1c]'}
                >
                  Continue
                </Button>
