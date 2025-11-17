@@ -17,11 +17,35 @@
     }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
       body {
-        font-family: 'Nunito', sans-serif;
+        font-family: 'Outfit', sans-serif;
       }
+      
+      /* Theme Variables */
+      :root {
+        /* Light Mode: Blue Primary, Dark Blue Secondary */
+        --brand-primary: #3b82f6; /* Blue 500 */
+        --brand-primary-dark: #2563eb; /* Blue 600 */
+        --brand-primary-shadow: #1d4ed8; /* Blue 700 */
+        
+        --brand-secondary: #1e40af; /* Blue 800 */
+        --brand-secondary-dark: #1e3a8a; /* Blue 900 */
+        --brand-secondary-shadow: #172554; /* Blue 950 */
+      }
+
+      .dark {
+        /* Dark Mode: Light Purple Primary, Deep Purple Secondary */
+        --brand-primary: #c084fc; /* Purple 400 */
+        --brand-primary-dark: #a855f7; /* Purple 500 */
+        --brand-primary-shadow: #7e22ce; /* Purple 700 */
+        
+        --brand-secondary: #6b21a8; /* Purple 800 */
+        --brand-secondary-dark: #581c87; /* Purple 900 */
+        --brand-secondary-shadow: #3b0764; /* Purple 950 */
+      }
+
       /* Custom Scrollbar for aesthetics */
       ::-webkit-scrollbar {
         width: 8px;
@@ -61,14 +85,16 @@
           extend: {
             colors: {
               brand: {
-                green: '#10b981',      /* Emerald 500 */
-                green_dark: '#059669', /* Emerald 600 */
-                blue: '#065f46',       /* Emerald 800 (Replacing Blue with Dark Green) */
-                blue_dark: '#064e3b',  /* Emerald 900 */
+                green: 'var(--brand-primary)',       /* Mapped to Theme Primary */
+                green_dark: 'var(--brand-primary-dark)',
+                blue: 'var(--brand-secondary)',      /* Mapped to Theme Secondary */
+                blue_dark: 'var(--brand-secondary-dark)',
                 red: '#ef4444',
                 red_dark: '#b91c1c',
                 yellow: '#f59e0b',
                 yellow_dark: '#b45309',
+                success: '#10b981', /* Explicit Green for Success states */
+                success_dark: '#059669',
               }
             },
             animation: {
@@ -85,7 +111,7 @@
       }
     </script>
   </head>
-  <body class="bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-white overflow-hidden h-screen w-screen">
+  <body class="bg-gray-50 dark:bg-black text-gray-800 dark:text-white overflow-hidden h-screen w-screen">
     <div id="root" class="h-full w-full"></div>
     <script type="module" src="index.tsx"></script>
   </body>

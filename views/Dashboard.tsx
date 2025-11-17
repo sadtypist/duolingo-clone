@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
 import { LANGUAGES, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
@@ -261,9 +262,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                       return (
                         <div key={goal.id} className={`p-3 rounded-xl border-2 transition-all ${goal.completed ? 'border-brand-yellow bg-yellow-50 dark:bg-yellow-900/20' : 'border-transparent bg-gray-50 dark:bg-gray-700/50'}`}>
                             <div className="flex justify-between items-center mb-2">
-                                <span className={`text-sm font-extrabold ${goal.completed ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-300'}`}>
-                                    {goal.title}
-                                </span>
+                                <div className="flex flex-col">
+                                  <span className={`text-sm font-extrabold ${goal.completed ? 'text-yellow-700 dark:text-yellow-400' : 'text-gray-600 dark:text-gray-300'}`}>
+                                      {goal.title}
+                                  </span>
+                                  {goal.rewardXp && !goal.completed && (
+                                    <span className="text-xs font-bold text-brand-yellow">+{goal.rewardXp} XP Reward</span>
+                                  )}
+                                </div>
                                 {goal.completed ? (
                                     <div className="bg-brand-yellow text-white p-0.5 rounded-full flex items-center justify-center w-5 h-5">
                                         <Check size={14} strokeWidth={4} />

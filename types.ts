@@ -30,7 +30,8 @@ export interface DailyGoal {
   target: number;
   current: number;
   completed: boolean;
-  type: 'XP' | 'LESSONS';
+  type: 'XP' | 'LESSONS' | 'CORRECT_ANSWERS';
+  rewardXp: number;
 }
 
 export interface UserPreferences {

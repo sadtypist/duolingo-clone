@@ -3,7 +3,6 @@ import { Language, UserProfile, Achievement, DailyGoal, CharacterGroup } from '.
 
 export const LANGUAGES: Language[] = [
   { code: 'en-US', name: 'English (US)', flag: '🇺🇸', countryCode: 'us' },
-  { code: 'en-GB', name: 'English (UK)', flag: '🇬🇧', countryCode: 'gb' },
   { code: 'en-AU', name: 'English (AU)', flag: '🇦🇺', countryCode: 'au' },
   { code: 'en-CA', name: 'English (CA)', flag: '🇨🇦', countryCode: 'ca' },
   { code: 'en-IN', name: 'English (IN)', flag: '🇮🇳', countryCode: 'in' },
@@ -308,8 +307,9 @@ export const LEAGUES = [
 const todayStr = new Date().toISOString().split('T')[0];
 
 export const DEFAULT_GOALS: DailyGoal[] = [
-  { id: 'g1', title: 'Complete 2 Lessons', target: 2, current: 0, completed: false, type: 'LESSONS' },
-  { id: 'g2', title: 'Earn 50 XP', target: 50, current: 0, completed: false, type: 'XP' },
+  { id: 'g1', title: 'Complete 2 Lessons', target: 2, current: 0, completed: false, type: 'LESSONS', rewardXp: 20 },
+  { id: 'g2', title: 'Earn 50 XP', target: 50, current: 0, completed: false, type: 'XP', rewardXp: 30 },
+  { id: 'g3', title: '15 Correct Answers', target: 15, current: 0, completed: false, type: 'CORRECT_ANSWERS', rewardXp: 25 },
 ];
 
 export const MAX_ENERGY = 5;
@@ -346,7 +346,7 @@ export const DEFAULT_USER: UserProfile = {
   isGuest: true,
   hasCompletedOnboarding: false,
   preferences: {
-    autoDifficulty: false,
+    autoDifficulty: true,
     enableSoundEffects: true,
     enableStreakFreeze: true,
     showCharacters: true,

@@ -33,7 +33,13 @@ export const getProfile = (): UserProfile => {
     if (!sessionEmail) {
         const guestStr = localStorage.getItem(GUEST_KEY);
         if (guestStr) {
-            const guestUser = JSON.parse(guestStr);
+            let guestUser = JSON.parse(guestStr);
+            
+            // Migration for Daily Goals
+            if (guestUser.dailyGoals && (guestUser.dailyGoals.length < 3 || !guestUser.dailyGoals[0].rewardXp)) {
+                 guestUser.dailyGoals = DEFAULT_GOALS;
+            }
+            
             return { ...guestUser, isGuest: true };
         }
         return DEFAULT_USER;
@@ -53,6 +59,11 @@ export const getProfile = (): UserProfile => {
     let profile = { ...DEFAULT_USER, ...user, isGuest: false }; 
     // Deep merge preferences
     profile.preferences = { ...DEFAULT_USER.preferences, ...(user.preferences || {}) };
+
+    // Migration for Daily Goals for logged in users
+    if (profile.dailyGoals && (profile.dailyGoals.length < 3 || !profile.dailyGoals[0].rewardXp)) {
+        profile.dailyGoals = DEFAULT_GOALS;
+    }
 
     // --- Energy Regeneration Logic ---
     if (profile.energy < MAX_ENERGY) {
@@ -148,6 +159,7 @@ export const registerUser = (email: string, password: string, name: string, user
         lastEnergyRefill: baseData.lastEnergyRefill,
         achievements: baseData.achievements,
         currentLanguageCode: baseData.currentLanguageCode,
+        dailyGoals: baseData.dailyGoals, // Migrate daily goals state
         
         // New Identity
         id: `user_${Date.now()}`,
@@ -267,9 +279,42 @@ interface LessonResult {
   strongTopicsDetected: string[];
 }
 
-export const completeLesson = (result: LessonResult, isPractice: boolean = false): { profile: UserProfile; newAchievements: string[] } => {
+export const completeLesson = (result: LessonResult, isPractice: boolean = false): { profile: UserProfile; newAchievements: string[]; goalsCompleted: DailyGoal[]; xpGainedTotal: number } => {
   const profile = getProfile();
-  const { langCode, xpGained, weakTopicsDetected, strongTopicsDetected } = result;
+  const { langCode, xpGained, weakTopicsDetected, strongTopicsDetected, questionsCorrect } = result;
+
+  let bonusXp = 0;
+  const goalsCompleted: DailyGoal[] = [];
+
+  const isFirstAction = profile.dailyGoals.every(g => g.current === 0);
+  if (isFirstAction) {
+    profile.streak += 1;
+  }
+
+  const updatedGoals = profile.dailyGoals.map(goal => {
+    let newCurrent = goal.current;
+    if (goal.type === 'XP') newCurrent += xpGained; // Doesn't include bonus XP from other goals to avoid circular dependency logic for now
+    if (goal.type === 'LESSONS') newCurrent += 1;
+    if (goal.type === 'CORRECT_ANSWERS') newCurrent += questionsCorrect;
+    
+    const isCompleted = newCurrent >= goal.target;
+    const wasCompleted = goal.completed;
+
+    if (isCompleted && !wasCompleted) {
+        bonusXp += (goal.rewardXp || 0);
+        goalsCompleted.push({ ...goal, current: newCurrent, completed: isCompleted });
+    }
+    
+    return {
+      ...goal,
+      current: newCurrent,
+      completed: isCompleted
+    };
+  });
+
+  // If 'XP' goal is completed by the base XP + bonus XP from other goals?
+  // For simplicity, 'XP' goal only counts lesson XP to avoid complexity of recursive goal completion. 
+  // However, we should probably add bonus XP to the language progress.
 
   const currentProgress = profile.progress[langCode] || {
     languageCode: langCode,
@@ -285,7 +330,8 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
   });
   newWeakAreas = newWeakAreas.filter(topic => !strongTopicsDetected.includes(topic));
 
-  const newXp = currentProgress.xp + xpGained;
+  const xpGainedTotal = xpGained + bonusXp;
+  const newXp = currentProgress.xp + xpGainedTotal;
   const newLevel = Math.floor(newXp / 100) + 1;
   const lessonsIncrement = isPractice ? 0 : 1;
 
@@ -298,25 +344,8 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
     lastPlayed: new Date().toISOString()
   };
 
-  const isFirstAction = profile.dailyGoals.every(g => g.current === 0);
-  if (isFirstAction) {
-    profile.streak += 1;
-  }
-
-  const updatedGoals = profile.dailyGoals.map(goal => {
-    let newCurrent = goal.current;
-    if (goal.type === 'XP') newCurrent += xpGained;
-    if (goal.type === 'LESSONS') newCurrent += 1;
-    
-    return {
-      ...goal,
-      current: newCurrent,
-      completed: newCurrent >= goal.target
-    };
-  });
-
   const unlockedIds: string[] = [];
-  const totalXP = Object.values(profile.progress).reduce((acc, p) => acc + p.xp, 0) + xpGained; 
+  const totalXP = Object.values(profile.progress).reduce((acc, p) => acc + p.xp, 0) + xpGainedTotal; 
   const totalLessons = Object.values(profile.progress).reduce((acc, p) => acc + p.lessonsCompleted, 0) + lessonsIncrement;
   const languageCount = Object.keys(profile.progress).length;
   const score = Math.floor((totalXP * 0.5) + (totalLessons * 10) + (languageCount * 50));
@@ -350,5 +379,5 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
   };
 
   saveProfile(updatedProfile);
-  return { profile: updatedProfile, newAchievements: unlockedIds };
+  return { profile: updatedProfile, newAchievements: unlockedIds, goalsCompleted, xpGainedTotal };
 };

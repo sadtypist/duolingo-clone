@@ -1,5 +1,6 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import { UserProfile, Lesson, QuestionType } from '../types';
+import { UserProfile, Lesson, QuestionType, DailyGoal } from '../types';
 import { generateLesson, validateTranslation } from '../services/geminiService';
 import { completeLesson, popOfflineLesson } from '../services/storageService';
 import { LANGUAGES, XP_PER_LESSON, ACHIEVEMENTS } from '../constants';
@@ -70,6 +71,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     updatedProfile: UserProfile;
     weakAreas: string[];
     strongAreas: string[];
+    goalsCompleted: DailyGoal[];
   } | null>(null);
 
   const currentLang = LANGUAGES.find(l => l.code === user.currentLanguageCode);
@@ -298,11 +300,11 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   const finishLesson = () => {
     if (!user.currentLanguageCode || !lesson) return;
     
-    const xp = XP_PER_LESSON + (correctCount * 5);
+    const baseXp = XP_PER_LESSON + (correctCount * 5);
     
     const result = completeLesson({
       langCode: user.currentLanguageCode,
-      xpGained: xp,
+      xpGained: baseXp,
       questionsTotal: lesson.questions.length,
       questionsCorrect: correctCount,
       weakTopicsDetected: incorrectQuestions,
@@ -314,13 +316,14 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     const uniqueStrong = [...new Set(correctQuestions)].filter(t => !uniqueWeak.includes(t));
 
     setLessonResult({
-        xpGained: xp,
+        xpGained: result.xpGainedTotal,
         correctCount: correctCount,
         totalQuestions: lesson.questions.length,
         newAchievements: result.newAchievements,
         updatedProfile: result.profile,
         weakAreas: uniqueWeak,
-        strongAreas: uniqueStrong
+        strongAreas: uniqueStrong,
+        goalsCompleted: result.goalsCompleted
     });
 
     if (user.preferences?.enableSoundEffects) {
@@ -333,7 +336,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   // DIFFICULTY SELECTION SCREEN
   if (!difficulty) {
       return (
-        <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg min-h-screen p-6">
+        <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg p-6">
              <div className="flex items-center mb-8">
                 <button onClick={onExit} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
                   <X size={24} />
@@ -344,20 +347,21 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
              <div className="flex-1 flex flex-col justify-center space-y-4 pb-16">
                 <h2 className="text-center text-2xl font-black text-gray-800 dark:text-white mb-6">Choose difficulty</h2>
                 
-                <button onClick={() => setDifficulty('Easy')} className="group relative p-6 rounded-3xl border-b-4 border-brand-green bg-green-50 dark:bg-green-900/20 hover:bg-brand-green active:border-b-0 active:translate-y-1 transition-all">
+                {/* Explicit Emerald/Green colors for "Easy" to maintain semantic meaning regardless of theme */}
+                <button onClick={() => setDifficulty('Easy')} className="group relative p-6 rounded-3xl border-b-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-500 active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xl font-black text-brand-green-dark dark:text-brand-green group-hover:text-white uppercase tracking-wide">Easy</span>
-                      <Feather className="text-brand-green group-hover:text-white" size={32} strokeWidth={2.5} />
+                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-500 group-hover:text-white uppercase tracking-wide">Easy</span>
+                      <Feather className="text-emerald-500 group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-green-100 text-left">Relaxed pace with simple concepts.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-emerald-100 text-left">Relaxed pace with simple concepts.</p>
                 </button>
 
-                <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-emerald-50 dark:bg-emerald-900/20 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
+                <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-blue-50 dark:bg-blue-900/20 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                       <span className="text-xl font-black text-brand-blue-dark dark:text-emerald-300 group-hover:text-white uppercase tracking-wide">Medium</span>
+                       <span className="text-xl font-black text-brand-blue-dark dark:text-blue-300 group-hover:text-white uppercase tracking-wide">Medium</span>
                        <Target className="text-brand-blue group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-emerald-100 text-left">Standard challenge for your level.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-blue-100 text-left">Standard challenge for your level.</p>
                 </button>
 
                 <button onClick={() => setDifficulty('Hard')} className="group relative p-6 rounded-3xl border-b-4 border-brand-red bg-red-50 dark:bg-red-900/20 hover:bg-brand-red active:border-b-0 active:translate-y-1 transition-all">
@@ -374,7 +378,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-white dark:bg-gray-800">
+      <div className="flex flex-col items-center justify-center h-full bg-white dark:bg-gray-800">
         <Loader2 className={`w-12 h-12 ${isPractice ? 'text-purple-500' : 'text-brand-green'} animate-spin mb-4`} />
         <h2 className="text-xl font-bold text-gray-700 dark:text-white">
           {focusCharacters.length > 0 ? 'Preparing Character Drill...' : (isPractice && hasWeakAreas) ? 'Targeting Your Weak Areas...' : isPractice ? 'Preparing Practice Session...' : 'Creating your lesson...'}
@@ -388,7 +392,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   if (!lesson) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen p-4 text-center bg-white dark:bg-gray-800">
+      <div className="flex flex-col items-center justify-center h-full p-4 text-center bg-white dark:bg-gray-800">
         {isOfflineMode ? (
             <>
                 <WifiOff className="w-16 h-16 text-gray-300 mb-4" />
@@ -408,7 +412,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     const accuracy = Math.round((lessonResult.correctCount / lessonResult.totalQuestions) * 100);
 
     return (
-      <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg min-h-screen p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
          <div className="flex-1 flex flex-col items-center text-center overflow-y-auto pb-4">
             
             <div className="relative mb-6 mt-8">
@@ -421,6 +425,18 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                 <Zap size={20} fill="currentColor" />
                 <span>+{lessonResult.xpGained} XP Earned</span>
             </div>
+            
+            {/* Daily Goals Completed Notification */}
+            {lessonResult.goalsCompleted.length > 0 && (
+              <div className="w-full mb-8 animate-bounce-short">
+                {lessonResult.goalsCompleted.map(goal => (
+                  <div key={goal.id} className="flex items-center justify-center gap-2 p-2 mb-2 rounded-xl bg-emerald-500 text-white font-bold shadow-md">
+                    <CheckCircle size={20} />
+                    <span>Daily Goal: {goal.title} (+{goal.rewardXp} XP)</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Stats Grid */}
             <div className="grid grid-cols-2 gap-4 w-full mb-8">
@@ -441,7 +457,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                  <div className="space-y-4">
                     {lessonResult.strongAreas.length > 0 && (
                       <div className="bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900 rounded-xl p-4">
-                         <div className="flex items-center gap-2 mb-2 text-brand-green font-extrabold uppercase text-sm">
+                         <div className="flex items-center gap-2 mb-2 text-brand-success font-extrabold uppercase text-sm">
                             <CheckCircle size={16} /> Strengths
                          </div>
                          <div className="flex flex-wrap gap-2">
@@ -537,7 +553,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   else canCheck = !!selectedOption;
 
   return (
-    <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg min-h-screen relative transition-colors duration-300">
+    <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg relative transition-colors duration-300">
       {/* Offline Indicator - Enhanced visibility */}
       {isOfflineMode && (
         <div className="bg-amber-500 dark:bg-amber-600 text-white py-3 px-4 animate-in slide-in-from-top z-30 shadow-md">
@@ -562,8 +578,8 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         </div>
       )}
 
-      {/* Header - Sticky and visually enhanced */}
-      <div className="sticky top-0 z-20 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm px-4 py-4 flex items-center gap-4 border-b border-gray-50 dark:border-gray-700 shadow-sm">
+      {/* Header - Flex item (no sticky), z-index for safety */}
+      <div className="flex-none z-20 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm px-4 py-4 flex items-center gap-4 border-b border-gray-50 dark:border-gray-700 shadow-sm">
         <button onClick={() => setShowQuitModal(true)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
           <X size={24} />
         </button>
@@ -584,190 +600,194 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         {focusCharacters.length > 0 && <BookA className="text-brand-blue" size={24} />}
       </div>
 
-      {/* Question Area */}
-      <div className="flex-1 px-6 flex flex-col justify-center pb-24 overflow-y-auto pt-6">
-        
-        <div className="mb-6">
-           {currentQ.type === QuestionType.FILL_BLANK && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Fill in the blank</span>}
-           {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE) && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Translate this sentence</span>}
-           {currentQ.type === QuestionType.LISTENING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Listen and select</span>}
-           {currentQ.type === QuestionType.SPEAKING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Speak this sentence</span>}
-           {currentQ.type === QuestionType.MULTIPLE_CHOICE && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Select the correct answer</span>}
-        </div>
-
-        {/* Question Content */}
-        <div className="mb-8">
-           {isListeningQ ? (
-             <div className="flex flex-col items-center">
-               <button 
-                 onClick={() => speak(currentQ.questionText, currentLang.code)}
-                 className="w-32 h-32 rounded-2xl bg-brand-blue text-white flex items-center justify-center shadow-[0_6px_0_0_#064e3b] active:translate-y-[6px] active:shadow-none transition-all mb-6"
-               >
-                  <Volume2 size={48} />
-               </button>
-             </div>
-           ) : (
-             <div className="flex items-start gap-4">
-                {/* Universal Speaker Icon for all non-listening types */}
-               <button 
-                 onClick={() => speak(currentQ.questionText, currentLang.code)} 
-                 className="mt-1 p-3 rounded-xl bg-brand-blue text-white shadow-[0_2px_0_0_#064e3b] active:shadow-none active:translate-y-[2px] transition-all flex-shrink-0"
-                 title="Read aloud"
-               >
-                 <Volume2 size={20} />
-               </button>
-               
-               <h2 className="text-2xl font-bold text-gray-700 dark:text-white leading-tight pt-1">
-                 {currentQ.questionText.includes('____') ? (
-                   currentQ.questionText.split('____').map((part, i, arr) => (
-                    <React.Fragment key={i}>
-                      {part}
-                      {i < arr.length - 1 && (
-                        <span className="inline-block min-w-[3rem] border-b-4 border-gray-300 dark:border-gray-600 mx-1 relative top-1"></span>
-                      )}
-                    </React.Fragment>
-                   ))
-                 ) : (
-                   currentQ.questionText
-                 )}
-               </h2>
-             </div>
-           )}
-        </div>
-
-        {/* Hint Section */}
-        {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE || currentQ.type === QuestionType.FILL_BLANK) && (
+      {/* Question Area - Scrollable with Center/Scroll logic */}
+      <div className="flex-1 overflow-y-auto w-full relative">
+        <div className="min-h-full flex flex-col justify-center p-6 pb-12">
+            
             <div className="mb-6">
-                {!showHint ? (
-                    <button 
-                        onClick={() => setShowHint(true)}
-                        className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-brand-blue transition-colors group"
-                    >
-                        <div className="p-1 rounded-full group-hover:bg-emerald-50 dark:group-hover:bg-emerald-900/20 transition-colors">
-                            <Lightbulb size={18} />
+              {currentQ.type === QuestionType.FILL_BLANK && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Fill in the blank</span>}
+              {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE) && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Translate this sentence</span>}
+              {currentQ.type === QuestionType.LISTENING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Listen and select</span>}
+              {currentQ.type === QuestionType.SPEAKING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Speak this sentence</span>}
+              {currentQ.type === QuestionType.MULTIPLE_CHOICE && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Select the correct answer</span>}
+            </div>
+
+            {/* Question Content */}
+            <div className="mb-8 break-words">
+              {isListeningQ ? (
+                <div className="flex flex-col items-center">
+                  <button 
+                    onClick={() => speak(currentQ.questionText, currentLang.code)}
+                    className="w-32 h-32 rounded-2xl bg-brand-blue text-white flex items-center justify-center shadow-[0_6px_0_0_var(--brand-secondary-shadow)] active:translate-y-[6px] active:shadow-none transition-all mb-6"
+                  >
+                      <Volume2 size={48} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-start gap-4">
+                    {/* Universal Speaker Icon for all non-listening types */}
+                  <button 
+                    onClick={() => speak(currentQ.questionText, currentLang.code)} 
+                    className="mt-1 p-3 rounded-xl bg-brand-blue text-white shadow-[0_2px_0_0_var(--brand-secondary-shadow)] active:shadow-none active:translate-y-[2px] transition-all flex-shrink-0"
+                    title="Read aloud"
+                  >
+                    <Volume2 size={20} />
+                  </button>
+                  
+                  <h2 className="text-2xl font-bold text-gray-700 dark:text-white leading-tight pt-1">
+                    {currentQ.questionText.includes('____') ? (
+                      currentQ.questionText.split('____').map((part, i, arr) => (
+                        <React.Fragment key={i}>
+                          {part}
+                          {i < arr.length - 1 && (
+                            <span className="inline-block min-w-[3rem] border-b-4 border-gray-300 dark:border-gray-600 mx-1 relative top-1"></span>
+                          )}
+                        </React.Fragment>
+                      ))
+                    ) : (
+                      currentQ.questionText
+                    )}
+                  </h2>
+                </div>
+              )}
+            </div>
+
+            {/* Hint Section */}
+            {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE || currentQ.type === QuestionType.FILL_BLANK) && (
+                <div className="mb-6">
+                    {!showHint ? (
+                        <button 
+                            onClick={() => setShowHint(true)}
+                            className="flex items-center gap-2 text-sm font-bold text-gray-400 hover:text-brand-blue transition-colors group"
+                        >
+                            <div className="p-1 rounded-full group-hover:bg-blue-50 dark:group-hover:bg-blue-900/20 transition-colors">
+                                <Lightbulb size={18} />
+                            </div>
+                            <span>Need a hint?</span>
+                        </button>
+                    ) : (
+                        <div className="inline-flex items-start gap-3 bg-blue-50 dark:bg-blue-900/20 border border-brand-blue/20 px-4 py-3 rounded-xl text-brand-blue animate-in fade-in slide-in-from-top-2">
+                            <Lightbulb size={18} className="flex-shrink-0 mt-0.5" />
+                            <div className="flex flex-col">
+                                {currentQ.topic && (
+                                  <span className="text-[10px] font-black opacity-60 uppercase tracking-wider mb-1">
+                                    Topic: {currentQ.topic}
+                                  </span>
+                                )}
+                                <span className="text-sm font-bold leading-tight">
+                                    {currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE
+                                        ? `Try using "${currentQ.correctAnswer.split(' ')[0]}"` 
+                                        : `Starts with "${currentQ.correctAnswer.charAt(0)}"`}
+                                </span>
+                            </div>
                         </div>
-                        <span>Need a hint?</span>
-                    </button>
-                ) : (
-                    <div className="inline-flex items-start gap-3 bg-emerald-50 dark:bg-emerald-900/20 border border-brand-blue/20 px-4 py-3 rounded-xl text-brand-blue animate-in fade-in slide-in-from-top-2">
-                        <Lightbulb size={18} className="flex-shrink-0 mt-0.5" />
-                        <div className="flex flex-col">
-                             {currentQ.topic && (
-                               <span className="text-[10px] font-black opacity-60 uppercase tracking-wider mb-1">
-                                 Topic: {currentQ.topic}
-                               </span>
-                             )}
-                             <span className="text-sm font-bold leading-tight">
-                                {currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE
-                                    ? `Try using "${currentQ.correctAnswer.split(' ')[0]}"` 
-                                    : `Starts with "${currentQ.correctAnswer.charAt(0)}"`}
-                             </span>
-                        </div>
-                    </div>
+                    )}
+                </div>
+            )}
+
+            {/* Input Area */}
+            {isSpeaking ? (
+              <div className="flex flex-col items-center gap-6">
+                <div className={`p-4 w-full min-h-[80px] rounded-2xl border-2 ${spokenText ? 'border-brand-blue bg-blue-50 dark:bg-blue-900/20' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'} flex items-center justify-center text-lg font-semibold text-center dark:text-white`}>
+                  {spokenText || "Tap mic to speak..."}
+                </div>
+                
+                {!feedback && (
+                  <button
+                    onClick={toggleListening}
+                    className={`
+                      w-20 h-20 rounded-full flex items-center justify-center text-white shadow-lg transition-all
+                      ${isListening ? 'bg-red-500 animate-pulse' : 'bg-brand-blue hover:bg-brand-blue-dark'}
+                    `}
+                  >
+                    {isListening ? <MicOff size={32} /> : <Mic size={32} />}
+                  </button>
                 )}
-            </div>
-        )}
-
-        {/* Input Area */}
-        {isSpeaking ? (
-          <div className="flex flex-col items-center gap-6">
-             <div className={`p-4 w-full min-h-[80px] rounded-2xl border-2 ${spokenText ? 'border-brand-blue bg-emerald-50 dark:bg-emerald-900/20' : 'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700'} flex items-center justify-center text-lg font-semibold text-center dark:text-white`}>
-               {spokenText || "Tap mic to speak..."}
-             </div>
-             
-             {!feedback && (
-               <button
-                 onClick={toggleListening}
-                 className={`
-                   w-20 h-20 rounded-full flex items-center justify-center text-white shadow-lg transition-all
-                   ${isListening ? 'bg-red-500 animate-pulse' : 'bg-brand-blue hover:bg-brand-blue-dark'}
-                 `}
-               >
-                 {isListening ? <MicOff size={32} /> : <Mic size={32} />}
-               </button>
-             )}
-          </div>
-        ) : isTranslate ? (
-          <div className="w-full relative">
-            <textarea 
-               value={typedAnswer}
-               onChange={(e) => setTypedAnswer(e.target.value)}
-               disabled={!!feedback || isChecking}
-               placeholder="Type or speak your translation..."
-               className={`
-                 w-full p-4 pb-12 rounded-xl border-2 min-h-[120px] text-lg font-medium resize-none outline-none transition-all dark:text-white
-                 ${feedback === 'correct' ? 'border-brand-green bg-green-50 dark:bg-green-900/20 text-emerald-800 dark:text-green-300 scale-105 ring-4 ring-green-200 dark:ring-green-900 shadow-lg' : 
-                   feedback === 'incorrect' ? 'border-brand-red bg-red-50 dark:bg-red-900/20 text-brand-red' : 
-                   'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:border-brand-blue focus:bg-white dark:focus:bg-gray-800 text-gray-700'}
-               `}
-            />
-            <div className="absolute bottom-3 right-3 flex items-center gap-2">
-               {!feedback && (
-                 <>
-                   <button
-                       onClick={toggleListening}
-                       className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md' : 'bg-gray-100 dark:bg-gray-600 text-gray-400 dark:text-gray-300 hover:bg-brand-blue hover:text-white'}`}
-                       title="Use Voice Input"
-                   >
-                       {isListening ? <MicOff size={20} /> : <Mic size={20} />}
-                   </button>
-                   <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1"></div>
-                   <Keyboard size={20} className="text-gray-300" />
-                 </>
-               )}
-            </div>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 gap-3">
-            {currentQ.options.map((option, idx) => {
-              const isSelected = selectedOption === option;
-              const isCorrect = currentQ.correctAnswer === option;
-              
-              // Visual states for feedback
-              let statusClass = "border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white";
-              if (feedback === 'correct' && isCorrect) statusClass = "bg-green-100 dark:bg-green-900/40 border-brand-green text-emerald-800 dark:text-green-300 ring-4 ring-green-200 dark:ring-green-900 scale-105 shadow-lg z-10 transition-transform duration-500 ease-out";
-              if (feedback === 'incorrect' && isSelected) statusClass = "bg-red-100 dark:bg-red-900/40 border-brand-red text-brand-red";
-              if (!feedback && isSelected) statusClass = "bg-emerald-50 dark:bg-emerald-900/40 border-brand-blue text-brand-blue";
-
-              return (
-                <button
-                  key={idx}
-                  disabled={!!feedback}
-                  onClick={() => {
-                    setSelectedOption(option);
-                    speak(option, currentLang.code); // SPEAK SELECTION
-                  }}
+              </div>
+            ) : isTranslate ? (
+              <div className="w-full relative">
+                <textarea 
+                  value={typedAnswer}
+                  onChange={(e) => setTypedAnswer(e.target.value)}
+                  disabled={!!feedback || isChecking}
+                  placeholder="Type or speak your translation..."
                   className={`
-                    w-full p-4 rounded-xl border-2 text-lg font-semibold text-left transition-all flex justify-between items-center
-                    ${statusClass}
-                    ${feedback ? 'cursor-default' : 'cursor-pointer shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-[4px]'}
+                    w-full p-4 pb-12 rounded-xl border-2 min-h-[120px] text-lg font-medium resize-none outline-none transition-all dark:text-white
+                    ${feedback === 'correct' ? 'border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 text-emerald-800 dark:text-emerald-300 scale-105 ring-4 ring-emerald-200 dark:ring-emerald-900 shadow-lg' : 
+                      feedback === 'incorrect' ? 'border-brand-red bg-red-50 dark:bg-red-900/20 text-brand-red' : 
+                      'border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-700 focus:border-brand-blue focus:bg-white dark:focus:bg-gray-800 text-gray-700'}
                   `}
-                >
-                  <span>{option}</span>
-                  {feedback === 'correct' && isCorrect && <Check size={24} className="animate-bounce-short" />}
-                  {feedback === 'incorrect' && isSelected && <X size={24} />}
-                </button>
-              )
-            })}
-          </div>
-        )}
+                />
+                <div className="absolute bottom-3 right-3 flex items-center gap-2">
+                  {!feedback && (
+                    <>
+                      <button
+                          onClick={toggleListening}
+                          className={`p-2 rounded-full transition-all ${isListening ? 'bg-red-500 text-white animate-pulse shadow-md' : 'bg-gray-100 dark:bg-gray-600 text-gray-400 dark:text-gray-300 hover:bg-brand-blue hover:text-white'}`}
+                          title="Use Voice Input"
+                      >
+                          {isListening ? <MicOff size={20} /> : <Mic size={20} />}
+                      </button>
+                      <div className="w-px h-6 bg-gray-200 dark:bg-gray-600 mx-1"></div>
+                      <Keyboard size={20} className="text-gray-300" />
+                    </>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-3">
+                {currentQ.options.map((option, idx) => {
+                  const isSelected = selectedOption === option;
+                  const isCorrect = currentQ.correctAnswer === option;
+                  
+                  // Visual states for feedback
+                  let statusClass = "border-gray-200 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 dark:text-white";
+                  
+                  // Use semantic green (emerald) for success, explicit red for error, theme blue for selection
+                  if (feedback === 'correct' && isCorrect) statusClass = "bg-emerald-100 dark:bg-emerald-900/40 border-emerald-500 text-emerald-800 dark:text-emerald-300 ring-4 ring-emerald-200 dark:ring-emerald-900 scale-105 shadow-lg z-10 transition-transform duration-500 ease-out";
+                  if (feedback === 'incorrect' && isSelected) statusClass = "bg-red-100 dark:bg-red-900/40 border-brand-red text-brand-red";
+                  if (!feedback && isSelected) statusClass = "bg-blue-50 dark:bg-blue-900/40 border-brand-blue text-brand-blue";
+
+                  return (
+                    <button
+                      key={idx}
+                      disabled={!!feedback}
+                      onClick={() => {
+                        setSelectedOption(option);
+                        speak(option, currentLang.code); // SPEAK SELECTION
+                      }}
+                      className={`
+                        w-full p-4 rounded-xl border-2 text-lg font-semibold text-left transition-all flex justify-between items-center
+                        ${statusClass}
+                        ${feedback ? 'cursor-default' : 'cursor-pointer shadow-[0_4px_0_0_rgba(0,0,0,0.1)] active:shadow-none active:translate-y-[4px]'}
+                      `}
+                    >
+                      <span>{option}</span>
+                      {feedback === 'correct' && isCorrect && <Check size={24} className="animate-bounce-short text-emerald-500" />}
+                      {feedback === 'incorrect' && isSelected && <X size={24} />}
+                    </button>
+                  )
+                })}
+              </div>
+            )}
+        </div>
       </div>
 
       {/* Footer Action */}
-      <div className={`border-t-2 p-4 pb-safe transition-colors duration-300 ${
-        feedback === 'correct' ? 'bg-green-100 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 
+      <div className={`flex-none border-t-2 p-4 pb-safe transition-colors duration-300 ${
+        feedback === 'correct' ? 'bg-emerald-100 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800' : 
         feedback === 'incorrect' ? 'bg-red-100 dark:bg-red-900/20 border-red-200 dark:border-red-800' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700'
       }`}>
         <div className="max-w-lg mx-auto flex justify-between items-center gap-4">
           
           {feedback === 'correct' && (
-             <div className="flex flex-col gap-2 text-brand-green flex-1 min-w-0">
+             <div className="flex flex-col gap-2 text-brand-success flex-1 min-w-0">
                <div className="flex items-center gap-2 font-extrabold text-xl animate-bounce-short">
                  <div className="bg-white dark:bg-gray-800 p-1 rounded-full shadow-sm"><Check size={24} /></div>
                  <span>Excellent!</span>
                </div>
                {currentQ.explanation && (
-                 <div className="text-sm font-bold text-green-700 dark:text-green-300 leading-snug break-words">
+                 <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300 leading-snug break-words">
                    {currentQ.explanation}
                  </div>
                )}
@@ -824,9 +844,9 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
              <div className="flex-shrink-0">
                <Button 
                  size="lg" 
-                 variant={feedback === 'correct' ? 'primary' : 'danger'}
+                 variant={feedback === 'correct' ? 'success' : 'danger'}
                  onClick={handleNext}
-                 className={feedback === 'correct' ? 'bg-brand-green shadow-[0_4px_0_0_#059669]' : 'bg-brand-red shadow-[0_4px_0_0_#b91c1c]'}
+                 className={feedback === 'correct' ? '' : 'bg-brand-red shadow-[0_4px_0_0_#b91c1c]'}
                >
                  Continue
                </Button>

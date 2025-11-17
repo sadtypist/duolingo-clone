@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { LANGUAGES } from '../constants';
 import { LanguageCard } from '../components/LanguageCard';
 import { UserProfile } from '../types';
-import { Search, ChevronDown, ArrowRight } from 'lucide-react';
+import { Search, ChevronDown, ArrowRight, BookOpen, Globe } from 'lucide-react';
 import { Button } from '../components/Button';
 
 interface LanguageSelectionProps {
@@ -44,13 +44,35 @@ export const LanguageSelection: React.FC<LanguageSelectionProps> = ({ user, onSe
       setSearch('');
   };
 
-  const filteredLanguages = LANGUAGES.filter(l => {
-    // Filter out the user's native language from the "Learn" list
-    if (l.code === nativeLanguageCode) return false;
-    
-    const displayName = getDisplayName(l.code);
-    return displayName.toLowerCase().includes(search.toLowerCase()) || l.name.toLowerCase().includes(search.toLowerCase());
-  });
+  // Filter Logic
+  const isSearching = search.trim().length > 0;
+  const lowerSearch = search.toLowerCase();
+
+  const learnableLanguages = LANGUAGES.filter(l => l.code !== nativeLanguageCode);
+
+  const matchesSearch = (l: typeof LANGUAGES[0]) => {
+      if (!isSearching) return true;
+      const displayName = getDisplayName(l.code);
+      return displayName.toLowerCase().includes(lowerSearch) || l.name.toLowerCase().includes(lowerSearch);
+  };
+
+  const activeCourseCodes = Object.keys(user.progress);
+  
+  // Active courses (matching search if active)
+  // Sort active courses by lastPlayed (most recent first)
+  const myCourses = learnableLanguages
+      .filter(l => activeCourseCodes.includes(l.code) && matchesSearch(l))
+      .sort((a, b) => {
+         const progA = user.progress[a.code];
+         const progB = user.progress[b.code];
+         const dateA = progA?.lastPlayed ? new Date(progA.lastPlayed).getTime() : 0;
+         const dateB = progB?.lastPlayed ? new Date(progB.lastPlayed).getTime() : 0;
+         return dateB - dateA;
+      });
+  
+  // Other courses (matching search if active)
+  const discoverCourses = learnableLanguages.filter(l => !activeCourseCodes.includes(l.code) && matchesSearch(l));
+
 
   // Filter for the Native Language Selector (show all)
   const nativeSelectionList = LANGUAGES.filter(l => 
@@ -128,27 +150,58 @@ export const LanguageSelection: React.FC<LanguageSelectionProps> = ({ user, onSe
           </div>
         </header>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
-          {filteredLanguages.map(lang => {
-              // Create a display object with the translated name
-              const displayLang = {
-                  ...lang,
-                  name: getDisplayName(lang.code)
-              };
+        {/* My Courses Section */}
+        {myCourses.length > 0 && (
+           <div className="mb-8 animate-in fade-in slide-in-from-bottom-2">
+              {!isSearching && (
+                  <div className="flex items-center gap-2 mb-4 text-gray-400 dark:text-gray-500 font-extrabold uppercase tracking-widest text-xs">
+                      <BookOpen size={16} />
+                      <span>My Courses</span>
+                  </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {myCourses.map(lang => {
+                    const displayLang = { ...lang, name: getDisplayName(lang.code) };
+                    return (
+                      <LanguageCard
+                        key={lang.code}
+                        language={displayLang}
+                        isSelected={user.currentLanguageCode === lang.code}
+                        progress={user.progress[lang.code]}
+                        onClick={() => onSelectLanguage(lang.code)}
+                      />
+                    );
+                })}
+              </div>
+           </div>
+        )}
 
-              return (
-                <LanguageCard
-                  key={lang.code}
-                  language={displayLang}
-                  isSelected={user.currentLanguageCode === lang.code}
-                  progress={user.progress[lang.code]}
-                  onClick={() => onSelectLanguage(lang.code)}
-                />
-              );
-          })}
-        </div>
+        {/* Discover Section */}
+        {discoverCourses.length > 0 && (
+           <div className="animate-in fade-in slide-in-from-bottom-4 delay-100">
+              {!isSearching && myCourses.length > 0 && (
+                  <div className="flex items-center gap-2 mb-4 text-gray-400 dark:text-gray-500 font-extrabold uppercase tracking-widest text-xs border-t border-gray-100 dark:border-gray-700 pt-6">
+                      <Globe size={16} />
+                      <span>Discover</span>
+                  </div>
+              )}
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-4">
+                {discoverCourses.map(lang => {
+                    const displayLang = { ...lang, name: getDisplayName(lang.code) };
+                    return (
+                      <LanguageCard
+                        key={lang.code}
+                        language={displayLang}
+                        isSelected={user.currentLanguageCode === lang.code}
+                        onClick={() => onSelectLanguage(lang.code)}
+                      />
+                    );
+                })}
+              </div>
+           </div>
+        )}
         
-        {filteredLanguages.length === 0 && (
+        {myCourses.length === 0 && discoverCourses.length === 0 && (
           <div className="text-center text-gray-400 mt-12">
             <p className="text-lg font-bold">No languages found.</p>
             <p>Try searching for something else.</p>
