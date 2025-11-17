@@ -1,4 +1,5 @@
 
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { Lesson } from '../types';
 
@@ -18,7 +19,8 @@ export const generateLesson = async (
   weakAreas: string[] = [], 
   isPractice: boolean = false,
   focusCharacters: string[] = [],
-  difficulty: 'Easy' | 'Medium' | 'Hard' = 'Medium'
+  difficulty: 'Easy' | 'Medium' | 'Hard' = 'Medium',
+  questionCount: number = 5
 ): Promise<Lesson | null> => {
   if (!ai) {
     console.error("Gemini API Key not found");
@@ -75,7 +77,7 @@ export const generateLesson = async (
   ${adaptiveContext}
   ${difficultyInstruction}
   
-  Generate exactly 5 questions with a mix of these types:
+  Generate exactly ${questionCount} questions with a mix of these types:
   1. MULTIPLE_CHOICE: Standard grammar/vocab question.
   2. FILL_BLANK: A sentence with a missing word indicated by '____'. Options are words to fill it.
   3. TRANSLATE: A short phrase or basic sentence in ${nativeLanguageName} (or target language) to translate.
@@ -197,5 +199,29 @@ export const validateTranslation = async (originalText: string, userTranslation:
   } catch (e) {
     console.error("Validation error", e);
     return false;
+  }
+};
+
+export const generateMascotImage = async (prompt: string): Promise<string | null> => {
+  if (!ai) return null;
+  try {
+    const response = await ai.models.generateImages({
+      model: 'imagen-4.0-generate-001',
+      prompt: prompt,
+      config: {
+        numberOfImages: 1,
+        outputMimeType: 'image/jpeg',
+        aspectRatio: '1:1',
+      },
+    });
+    
+    const base64ImageBytes = response.generatedImages?.[0]?.image?.imageBytes;
+    if (base64ImageBytes) {
+        return `data:image/jpeg;base64,${base64ImageBytes}`;
+    }
+    return null;
+  } catch (error) {
+    console.error("Error generating image:", error);
+    return null;
   }
 };

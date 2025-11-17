@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Lesson, QuestionType, DailyGoal } from '../types';
 import { generateLesson, validateTranslation } from '../services/geminiService';
@@ -22,11 +23,15 @@ interface LessonViewProps {
   onReviewWeakAreas?: (updatedUser: UserProfile) => void;
   isPractice?: boolean;
   focusCharacters?: string[];
+  initialLesson?: Lesson | null;
 }
 
-export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit, onReviewWeakAreas, isPractice = false, focusCharacters = [] }) => {
+export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit, onReviewWeakAreas, isPractice = false, focusCharacters = [], initialLesson = null }) => {
   // Determine initial difficulty if auto-set
   const getInitialDifficulty = () => {
+    // If initialLesson is provided, difficulty is already baked in, but we might need a value for state consistency
+    if (initialLesson) return 'Medium';
+    
     // For character lessons, bypass difficulty selection and default to Easy/Standard
     if (focusCharacters.length > 0) return 'Easy';
 
@@ -41,7 +46,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   const [difficulty, setDifficulty] = useState<'Easy' | 'Medium' | 'Hard' | null>(getInitialDifficulty());
   const [loading, setLoading] = useState(true);
-  const [lesson, setLesson] = useState<Lesson | null>(null);
+  const [lesson, setLesson] = useState<Lesson | null>(initialLesson);
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showQuitModal, setShowQuitModal] = useState(false);
@@ -88,6 +93,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   useEffect(() => {
     const loadLesson = async () => {
         if (!currentLang) return;
+        
+        if (initialLesson) {
+            setLesson(initialLesson);
+            setLoading(false);
+            return;
+        }
+
         if (!difficulty) return; // Wait for difficulty selection
 
         // Check Offline Status (skip for character lessons as they are dynamic/short usually, or fallback)
@@ -110,6 +122,10 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         const weakAreas = progress?.weakAreas || [];
         
         try {
+          // Determine question count from preferences. 
+          const lessonDuration = user.preferences?.lessonDuration || 5;
+          const questionCount = Math.max(3, lessonDuration);
+
           const newLesson = await generateLesson(
             currentLang.name, 
             nativeLangName, // Pass native language name
@@ -117,7 +133,8 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
             weakAreas, 
             isPractice, 
             focusCharacters,
-            difficulty
+            difficulty,
+            questionCount
           );
           setLesson(newLesson);
         } catch (e) {
@@ -131,7 +148,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         setLoading(false);
     };
     
-    if (difficulty) {
+    if (difficulty || initialLesson) {
        loadLesson();
     }
 
@@ -141,7 +158,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       }
       window.speechSynthesis.cancel();
     };
-  }, [currentLang, isPractice, focusCharacters, difficulty, nativeLangName]);
+  }, [currentLang, isPractice, focusCharacters, difficulty, nativeLangName, user.preferences, initialLesson]);
 
   // TTS Helper
   const speak = (text: string, langCode: string = 'en-US') => {
@@ -244,8 +261,8 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       
       if (normalizedTyped === normalizedTarget) {
         isCorrect = true;
-      } else if (!isOfflineMode) {
-        // Use AI to validate
+      } else if (!isOfflineMode && navigator.onLine) {
+        // Use AI to validate if online
         isCorrect = await validateTranslation(currentQ.questionText, typedAnswer, currentQ.correctAnswer);
       } else {
         // Strict fallback if offline
@@ -334,7 +351,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   if (!currentLang) return <div className="p-4 dark:text-white">No language selected</div>;
 
   // DIFFICULTY SELECTION SCREEN
-  if (!difficulty) {
+  if (!difficulty && !initialLesson) {
       return (
         <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg p-6">
              <div className="flex items-center mb-8">
@@ -384,7 +401,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
           {focusCharacters.length > 0 ? 'Preparing Character Drill...' : (isPractice && hasWeakAreas) ? 'Targeting Your Weak Areas...' : isPractice ? 'Preparing Practice Session...' : 'Creating your lesson...'}
         </h2>
         <p className="text-gray-400 dark:text-gray-500 text-center px-4">
-            {focusCharacters.length > 0 ? 'Focusing on specific symbols.' : (isPractice && hasWeakAreas) ? 'Customizing questions to help you improve.' : `Building ${difficulty.toLowerCase()} listening, speaking, and translation exercises.`}
+            {focusCharacters.length > 0 ? 'Focusing on specific symbols.' : (isPractice && hasWeakAreas) ? 'Customizing questions to help you improve.' : `Building ${(difficulty || 'standard').toLowerCase()} listening, speaking, and translation exercises.`}
         </p>
       </div>
     );
@@ -580,7 +597,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
       {/* Header - Flex item (no sticky), z-index for safety */}
       <div className="flex-none z-20 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm px-4 py-4 flex items-center gap-4 border-b border-gray-50 dark:border-gray-700 shadow-sm">
-        <button onClick={() => setShowQuitModal(true)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors">
+        <button onClick={() => setShowQuitModal(true)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 transition-colors p-2 -ml-2 rounded-full hover:bg-gray-100 dark:hover:bg-gray-700">
           <X size={24} />
         </button>
         

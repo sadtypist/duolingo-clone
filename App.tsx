@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { UserProfile } from './types';
+import { UserProfile, Lesson } from './types';
 import { DEFAULT_USER } from './constants';
 import { getProfile, saveProfile, consumeEnergy, logoutUser } from './services/storageService';
 import { Navigation } from './components/BottomNav.tsx';
@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [showSyncToast, setShowSyncToast] = useState(false);
   const [showLanding, setShowLanding] = useState(!user.hasCompletedOnboarding);
   const [lessonId, setLessonId] = useState(0); // Used to force remount of LessonView
+  const [preloadedLesson, setPreloadedLesson] = useState<Lesson | null>(null);
 
   // Effect to apply Dark Mode and Animation preferences globally
   useEffect(() => {
@@ -95,10 +96,14 @@ const App: React.FC = () => {
   };
 
   const handleContinueAsGuest = () => {
-      const updatedUser = { ...user, hasCompletedOnboarding: true };
+      const updatedUser = { ...user, isGuest: true, hasCompletedOnboarding: true };
       setUser(updatedUser);
       saveProfile(updatedUser); // Saves to Guest Storage
-      setCurrentView('languages'); // Direct them to pick a language
+      setShowLanding(false); // Immediately hide landing
+      
+      if (!updatedUser.currentLanguageCode) {
+          setCurrentView('languages'); // Direct them to pick a language
+      }
   };
 
   const handleLogout = () => {
@@ -123,12 +128,17 @@ const App: React.FC = () => {
     // Removed immediate navigation to 'home' to allow user to see selection state
   };
 
-  const handleStartLesson = () => {
+  const handleStartLesson = (lesson?: Lesson) => {
     const updatedProfile = consumeEnergy();
     if (updatedProfile) {
         setUser(updatedProfile);
         setIsPracticeMode(false);
         setFocusCharacters([]);
+        if (lesson) {
+           setPreloadedLesson(lesson);
+        } else {
+           setPreloadedLesson(null);
+        }
         setLessonId(prev => prev + 1);
         setIsLessonActive(true);
     }
@@ -140,6 +150,7 @@ const App: React.FC = () => {
         setUser(updatedProfile);
         setIsPracticeMode(true);
         setFocusCharacters([]);
+        setPreloadedLesson(null);
         setLessonId(prev => prev + 1);
         setIsLessonActive(true);
     }
@@ -151,6 +162,7 @@ const App: React.FC = () => {
         setUser(updatedProfile);
         setIsPracticeMode(false);
         setFocusCharacters(characters);
+        setPreloadedLesson(null);
         setLessonId(prev => prev + 1);
         setIsLessonActive(true);
     }
@@ -161,6 +173,7 @@ const App: React.FC = () => {
     setIsLessonActive(false);
     setIsPracticeMode(false);
     setFocusCharacters([]);
+    setPreloadedLesson(null);
   };
 
   const handleReviewWeakAreas = (updatedUser: UserProfile) => {
@@ -170,6 +183,7 @@ const App: React.FC = () => {
     // Start practice mode immediately
     setIsPracticeMode(true);
     setFocusCharacters([]);
+    setPreloadedLesson(null);
     setLessonId(prev => prev + 1); // Force remount for new lesson generation
     setIsLessonActive(true);
   };
@@ -190,6 +204,7 @@ const App: React.FC = () => {
         onReviewWeakAreas={handleReviewWeakAreas}
         isPractice={isPracticeMode}
         focusCharacters={focusCharacters}
+        initialLesson={preloadedLesson}
       />
     );
   }
@@ -235,7 +250,12 @@ const App: React.FC = () => {
           <span className="font-bold text-sm">Back online! Syncing progress...</span>
       </div>
 
-      <Navigation currentView={currentView} setView={setCurrentView} userPreferences={user.preferences} />
+      <Navigation 
+        currentView={currentView} 
+        setView={setCurrentView} 
+        userPreferences={user.preferences}
+        onPressLogo={() => setShowLanding(true)}
+      />
 
       <main className="flex-1 h-full relative w-full max-w-4xl mx-auto bg-white dark:bg-gray-800 md:shadow-xl md:my-4 md:rounded-2xl overflow-hidden border-gray-200 dark:border-gray-700 md:border transition-colors duration-300">
           {renderView()}

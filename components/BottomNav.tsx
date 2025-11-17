@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Home, User, Globe, Trophy, BookA, Settings } from 'lucide-react';
 
@@ -5,9 +6,10 @@ interface NavigationProps {
   currentView: string;
   setView: (view: string) => void;
   userPreferences?: { showCharacters: boolean }; 
+  onPressLogo?: () => void;
 }
 
-export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, userPreferences }) => {
+export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, userPreferences, onPressLogo }) => {
   const showCharacters = userPreferences?.showCharacters ?? true;
 
   const navItems = [
@@ -49,7 +51,13 @@ export const Navigation: React.FC<NavigationProps> = ({ currentView, setView, us
       {/* Desktop Sidebar Layout */}
       <div className="hidden md:flex flex-col h-full">
           <div className="mb-8 pl-4">
-             <h1 className="text-3xl font-extrabold text-brand-green tracking-tighter">LingoQuest</h1>
+             <button 
+               onClick={onPressLogo}
+               className="text-left hover:opacity-80 transition-opacity focus:outline-none"
+               title="Go to Home Page"
+             >
+               <h1 className="text-3xl font-extrabold text-brand-green tracking-tighter">LingoQuest</h1>
+             </button>
           </div>
           
           <div className="flex-1 space-y-2 overflow-y-auto">

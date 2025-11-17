@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Button } from '../components/Button';
 import { Globe, Sparkles, ArrowRight, Mail, Lock, User, AtSign, ChevronLeft, Camera, UserCircle } from 'lucide-react';
@@ -120,8 +121,9 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                   I already have an account
                 </Button>
                 <button 
+                  type="button"
                   onClick={onContinueAsGuest}
-                  className="text-gray-400 hover:text-gray-600 font-bold uppercase tracking-widest text-xs mt-4 flex items-center gap-2 justify-center w-full transition-colors"
+                  className="text-gray-400 hover:text-gray-600 font-bold uppercase tracking-widest text-xs mt-4 flex items-center gap-2 justify-center w-full transition-colors cursor-pointer"
                 >
                    <UserCircle size={16} /> Continue as Guest
                 </button>

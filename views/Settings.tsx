@@ -1,6 +1,8 @@
+
+
 import React from 'react';
 import { UserProfile } from '../types';
-import { Settings as SettingsIcon, BrainCircuit, Volume2, BookOpen, Flame, Target, Moon, ZapOff } from 'lucide-react';
+import { Settings as SettingsIcon, BrainCircuit, Volume2, BookOpen, Flame, Target, Moon, ZapOff, Clock } from 'lucide-react';
 
 interface SettingsProps {
   user: UserProfile;
@@ -140,6 +142,31 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
             </button>
           </div>
 
+           {/* Lesson Duration */}
+          <div className="bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-2xl p-4 shadow-sm mb-4">
+            <div className="flex items-center gap-4 mb-4">
+               <div className="bg-blue-100 dark:bg-blue-900/50 p-3 rounded-xl text-blue-600 dark:text-blue-400">
+                  <Clock size={24} />
+               </div>
+               <div>
+                  <h3 className="font-bold text-gray-800 dark:text-white text-lg">Lesson Duration</h3>
+                  <p className="text-gray-500 dark:text-gray-300 text-sm font-medium">Choose how long you want to learn per session.</p>
+               </div>
+            </div>
+            
+            <div className="flex gap-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
+                {[5, 10, 15, 20].map(val => (
+                   <button 
+                      key={val}
+                      onClick={() => setNumericPreference('lessonDuration', val)}
+                      className={`flex-1 py-2 rounded-lg font-bold transition-all text-sm ${user.preferences?.lessonDuration === val ? 'bg-white dark:bg-gray-600 text-brand-blue dark:text-blue-300 shadow-sm' : 'text-gray-400 dark:text-gray-500 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                   >
+                      {val} min
+                   </button>
+                ))}
+            </div>
+          </div>
+
           <div className="bg-white dark:bg-gray-700 border-2 border-gray-200 dark:border-gray-600 rounded-2xl p-4 flex items-center justify-between shadow-sm">
             <div className="flex items-center gap-4">
               <div className="bg-yellow-100 dark:bg-yellow-900/50 p-3 rounded-xl text-yellow-600 dark:text-yellow-400">
@@ -197,7 +224,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
             </div>
             
             <div className="flex gap-2 bg-gray-100 dark:bg-gray-800 p-1 rounded-xl">
-                {[10, 30, 50].map(val => (
+                {[30, 50, 100].map(val => (
                    <button 
                       key={val}
                       onClick={() => setNumericPreference('dailyGoalXp', val)}

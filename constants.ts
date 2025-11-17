@@ -1,4 +1,5 @@
 
+
 import { Language, UserProfile, Achievement, DailyGoal, CharacterGroup } from './types';
 
 export const LANGUAGES: Language[] = [
@@ -351,6 +352,7 @@ export const DEFAULT_USER: UserProfile = {
     enableStreakFreeze: true,
     showCharacters: true,
     dailyGoalXp: 50,
+    lessonDuration: 5,
     darkMode: false,
     disableAnimations: false
   }

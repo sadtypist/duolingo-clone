@@ -40,6 +40,7 @@ export interface UserPreferences {
   enableStreakFreeze: boolean;
   showCharacters: boolean;
   dailyGoalXp: number;
+  lessonDuration: number; // in minutes
   darkMode: boolean;
   disableAnimations: boolean;
 }

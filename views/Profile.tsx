@@ -1,10 +1,12 @@
 
+
 import React, { useRef, useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
 import { LANGUAGES, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus, Calendar, AlertCircle, LogOut } from 'lucide-react';
+import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus, Calendar, AlertCircle, LogOut, Sparkles, X, Wand2, Loader2 } from 'lucide-react';
 import { saveProfile } from '../services/storageService';
+import { generateMascotImage } from '../services/geminiService';
 
 interface ProfileProps {
   user: UserProfile;
@@ -16,6 +18,12 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(user.name);
+  
+  // AI Generation States
+  const [showAiModal, setShowAiModal] = useState(false);
+  const [aiPrompt, setAiPrompt] = useState('A friendly, stylized cartoon fox mascot for a language learning app. The fox should have a clever and encouraging expression. The design must be clean and vector-like, similar to modern manga character art. The fox\'s primary accent colors should be bright blue and light purple. It is wearing a small, simple blue satchel with a glowing purple compass emblem on it.');
+  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Sync tempName if user prop changes externally
   useEffect(() => {
@@ -60,6 +68,24 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
       }
   };
 
+  const handleGenerateImage = async () => {
+      if (!aiPrompt.trim()) return;
+      setIsGenerating(true);
+      setGeneratedImage(null);
+      const image = await generateMascotImage(aiPrompt);
+      if (image) {
+          setGeneratedImage(image);
+      }
+      setIsGenerating(false);
+  };
+
+  const handleUseGeneratedImage = () => {
+      if (generatedImage) {
+          onUpdateUser({ ...user, avatar: generatedImage });
+          setShowAiModal(false);
+      }
+  };
+
   // Calculated stats
   const progressValues = Object.values(user.progress) as LanguageProgress[];
   const totalXP = progressValues.reduce((acc, curr) => acc + curr.xp, 0);
@@ -77,6 +103,71 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
 
   return (
     <div className="h-full overflow-y-auto bg-white dark:bg-gray-800 transition-colors duration-300">
+      
+      {/* AI Generation Modal */}
+      {showAiModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
+              <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-md shadow-2xl border-2 border-brand-blue/20 overflow-hidden">
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center">
+                      <h3 className="font-black text-lg flex items-center gap-2 text-gray-800 dark:text-white">
+                          <Sparkles className="text-brand-blue" size={20} /> Design Mascot
+                      </h3>
+                      <button onClick={() => setShowAiModal(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 p-1 rounded-full hover:bg-gray-100 dark:hover:bg-gray-800">
+                          <X size={24} />
+                      </button>
+                  </div>
+                  
+                  <div className="p-6 flex flex-col gap-4">
+                      <div className="relative aspect-square w-full bg-gray-50 dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center overflow-hidden">
+                          {isGenerating ? (
+                              <div className="flex flex-col items-center text-brand-blue animate-pulse">
+                                  <Loader2 size={48} className="animate-spin mb-2" />
+                                  <span className="font-bold text-xs uppercase tracking-widest">Creating Magic...</span>
+                              </div>
+                          ) : generatedImage ? (
+                              <img src={generatedImage} alt="Generated Mascot" className="w-full h-full object-cover" />
+                          ) : (
+                              <div className="text-center text-gray-400 p-6">
+                                  <Wand2 size={48} className="mx-auto mb-2 opacity-50" />
+                                  <p className="text-sm font-bold">Describe your mascot below and tap Generate</p>
+                              </div>
+                          )}
+                      </div>
+
+                      <div>
+                          <label className="block text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Prompt</label>
+                          <textarea 
+                              className="w-full p-3 rounded-xl border-2 border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-sm font-medium focus:border-brand-blue outline-none resize-none h-28 dark:text-white"
+                              value={aiPrompt}
+                              onChange={(e) => setAiPrompt(e.target.value)}
+                              placeholder="E.g., A cool robot learning spanish..."
+                          />
+                      </div>
+                      
+                      <div className="flex gap-3 pt-2">
+                          <Button 
+                              fullWidth 
+                              variant="secondary" 
+                              onClick={handleGenerateImage}
+                              disabled={isGenerating}
+                          >
+                              {isGenerating ? 'Generating...' : 'Generate'}
+                          </Button>
+                          {generatedImage && (
+                              <Button 
+                                  fullWidth 
+                                  variant="success" 
+                                  onClick={handleUseGeneratedImage}
+                              >
+                                  Use Avatar
+                              </Button>
+                          )}
+                      </div>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <div className="p-6 pb-24 max-w-2xl mx-auto relative">
         
         {/* Guest Banner */}
@@ -114,12 +205,25 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                 </div>
               )}
             </div>
-            <button 
-              onClick={handleAvatarClick}
-              className="absolute bottom-0 right-0 bg-brand-blue text-white p-2 rounded-full border-4 border-white dark:border-gray-800 shadow-sm hover:bg-brand-blue/90"
-            >
-              <Camera size={16} />
-            </button>
+            
+            {/* Quick Actions */}
+            <div className="absolute bottom-0 right-0 flex flex-col gap-2">
+               <button 
+                 onClick={() => setShowAiModal(true)}
+                 className="bg-purple-500 text-white p-2 rounded-full border-4 border-white dark:border-gray-800 shadow-sm hover:bg-purple-600 z-10"
+                 title="Generate with AI"
+               >
+                 <Sparkles size={14} />
+               </button>
+               <button 
+                 onClick={handleAvatarClick}
+                 className="bg-brand-blue text-white p-2 rounded-full border-4 border-white dark:border-gray-800 shadow-sm hover:bg-brand-blue/90"
+                 title="Upload Image"
+               >
+                 <Camera size={14} />
+               </button>
+            </div>
+            
             <input 
               type="file" 
               ref={fileInputRef} 

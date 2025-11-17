@@ -1,4 +1,5 @@
 
+
 import { UserProfile, LanguageProgress, DailyGoal, OfflineLesson } from '../types';
 import { DEFAULT_USER, ACHIEVEMENTS, DEFAULT_GOALS, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
 
@@ -104,7 +105,17 @@ export const getProfile = (): UserProfile => {
       // For now, keeping simple logic:
       if (diffDays > 1) profile.streak = 0;
 
-      profile.dailyGoals = DEFAULT_GOALS.map(g => ({ ...g, current: 0, completed: false }));
+      // Reset Goals - Respect User Preference for XP Goal
+      const xpGoalTarget = profile.preferences?.dailyGoalXp || 50;
+      
+      profile.dailyGoals = DEFAULT_GOALS.map(g => {
+        // Override XP goal target if preference differs
+        if (g.type === 'XP') {
+            return { ...g, target: xpGoalTarget, current: 0, completed: false };
+        }
+        return { ...g, current: 0, completed: false };
+      });
+
       profile.lastActiveDate = today;
       saveProfile(profile);
     }
@@ -249,6 +260,29 @@ export const getOfflineLessonCount = (langCode: string): number => {
   }
 };
 
+export const getOfflineLessons = (langCode: string): OfflineLesson[] => {
+  try {
+    const existingStr = localStorage.getItem(OFFLINE_LESSONS_KEY);
+    if (!existingStr) return [];
+    const existing: OfflineLesson[] = JSON.parse(existingStr);
+    return existing.filter(l => l.languageCode === langCode);
+  } catch (e) {
+    return [];
+  }
+};
+
+export const deleteOfflineLesson = (lessonId: string): void => {
+  try {
+    const existingStr = localStorage.getItem(OFFLINE_LESSONS_KEY);
+    if (!existingStr) return;
+    let existing: OfflineLesson[] = JSON.parse(existingStr);
+    existing = existing.filter(l => l.id !== lessonId);
+    localStorage.setItem(OFFLINE_LESSONS_KEY, JSON.stringify(existing));
+  } catch(e) {
+    console.error("Failed to delete offline lesson", e);
+  }
+};
+
 export const popOfflineLesson = (langCode: string): OfflineLesson | null => {
   try {
     const existingStr = localStorage.getItem(OFFLINE_LESSONS_KEY);
@@ -311,10 +345,6 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
       completed: isCompleted
     };
   });
-
-  // If 'XP' goal is completed by the base XP + bonus XP from other goals?
-  // For simplicity, 'XP' goal only counts lesson XP to avoid complexity of recursive goal completion. 
-  // However, we should probably add bonus XP to the language progress.
 
   const currentProgress = profile.progress[langCode] || {
     languageCode: langCode,

@@ -1,15 +1,16 @@
 
+
 import React, { useState, useEffect } from 'react';
-import { UserProfile, LanguageProgress } from '../types';
+import { UserProfile, LanguageProgress, Lesson } from '../types';
 import { LANGUAGES, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
 import { Button } from '../components/Button';
-import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Loader2, AlertCircle, Heart, Clock, Check } from 'lucide-react';
+import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Loader2, AlertCircle, Heart, Clock, Check, WifiOff, Trash2, PlayCircle, X } from 'lucide-react';
 import { generateLesson } from '../services/geminiService';
-import { saveOfflineLesson, getOfflineLessonCount } from '../services/storageService';
+import { saveOfflineLesson, getOfflineLessonCount, getOfflineLessons, deleteOfflineLesson } from '../services/storageService';
 
 interface DashboardProps {
   user: UserProfile;
-  onStartLesson: () => void;
+  onStartLesson: (lesson?: Lesson) => void;
   onStartPractice: () => void;
   onChangeLanguage: () => void;
 }
@@ -18,12 +19,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
   const [isDownloading, setIsDownloading] = useState(false);
   const [timeUntilRefill, setTimeUntilRefill] = useState<string>('');
   const [showEnergyModal, setShowEnergyModal] = useState(false);
+  const [showOfflineManager, setShowOfflineManager] = useState(false);
+  const [offlineCount, setOfflineCount] = useState(0);
 
   const currentLang = LANGUAGES.find(l => l.code === user.currentLanguageCode);
   const nativeLangName = LANGUAGES.find(l => l.code === (user.nativeLanguageCode || 'en'))?.name || 'English';
   const progress = user.currentLanguageCode ? user.progress[user.currentLanguageCode] : null;
-  const offlineCount = user.currentLanguageCode ? getOfflineLessonCount(user.currentLanguageCode) : 0;
   const totalXP = (Object.values(user.progress) as LanguageProgress[]).reduce((acc, p) => acc + p.xp, 0);
+
+  useEffect(() => {
+      if (user.currentLanguageCode) {
+          setOfflineCount(getOfflineLessonCount(user.currentLanguageCode));
+      }
+  }, [user.currentLanguageCode, isDownloading, showOfflineManager]); // Update count when these change
 
   // Energy Timer Logic
   useEffect(() => {
@@ -52,9 +60,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
     return () => clearInterval(interval);
   }, [user.energy, user.lastEnergyRefill]);
 
-  const handleLessonAttempt = () => {
+  const handleLessonAttempt = (lesson?: Lesson) => {
       if (user.energy > 0) {
-          onStartLesson();
+          onStartLesson(lesson);
       } else {
           setShowEnergyModal(true);
       }
@@ -77,11 +85,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
       setIsDownloading(true);
       const level = progress?.level || 1;
       try {
-          // Download 2 lessons
+          // Determine question count from preferences
+          const lessonDuration = user.preferences?.lessonDuration || 5;
+          const questionCount = Math.max(3, lessonDuration);
+
+          // Download 1 lesson at a time to be safe, loop twice
           for (let i = 0; i < 2; i++) {
-              const lesson = await generateLesson(currentLang.name, nativeLangName, level, [], false);
+              const lesson = await generateLesson(currentLang.name, nativeLangName, level, [], false, [], 'Medium', questionCount);
               if (lesson) {
                   saveOfflineLesson({ ...lesson, savedAt: new Date().toISOString(), languageCode: currentLang.code });
+                  setOfflineCount(prev => prev + 1);
               }
           }
       } catch (e) {
@@ -90,6 +103,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
           setIsDownloading(false);
       }
   }
+
+  const handleDeleteLesson = (id: string) => {
+      deleteOfflineLesson(id);
+      setOfflineCount(prev => Math.max(0, prev - 1));
+  };
 
   // Mock Leaderboard Data
   const leaderboard = [
@@ -120,6 +138,74 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                        <Clock size={20} /> {timeUntilRefill}
                    </div>
                    <Button fullWidth onClick={() => setShowEnergyModal(false)}>Okay</Button>
+               </div>
+           </div>
+       )}
+
+       {/* Offline Manager Modal */}
+       {showOfflineManager && (
+           <div className="fixed inset-0 bg-gray-50 dark:bg-gray-900 z-50 flex flex-col animate-in slide-in-from-bottom duration-300 md:absolute md:rounded-2xl">
+               <div className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                   <div className="flex items-center gap-3">
+                       <div className="bg-teal-100 dark:bg-teal-900/30 p-2 rounded-xl text-teal-600 dark:text-teal-400">
+                           <WifiOff size={24} />
+                       </div>
+                       <div>
+                           <h2 className="text-xl font-black text-gray-800 dark:text-white">Offline Library</h2>
+                           <p className="text-xs font-bold text-gray-500 dark:text-gray-400">{offlineCount} saved lessons</p>
+                       </div>
+                   </div>
+                   <button onClick={() => setShowOfflineManager(false)} className="p-2 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full text-gray-400 transition-colors">
+                       <X size={24} />
+                   </button>
+               </div>
+               
+               <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50 dark:bg-gray-900">
+                   {offlineCount === 0 ? (
+                       <div className="flex flex-col items-center justify-center h-64 text-center">
+                           <Download size={48} className="text-gray-300 mb-4" />
+                           <p className="text-gray-500 dark:text-gray-400 font-bold mb-2">No offline lessons yet.</p>
+                           <p className="text-gray-400 text-sm max-w-xs">Download lessons to keep learning when you don't have internet.</p>
+                       </div>
+                   ) : (
+                       getOfflineLessons(currentLang.code).map(lesson => (
+                           <div key={lesson.id} className="bg-white dark:bg-gray-800 p-4 rounded-2xl border-2 border-gray-200 dark:border-gray-700 flex items-center justify-between shadow-sm">
+                               <div className="flex-1 min-w-0 mr-4">
+                                   <h3 className="font-bold text-gray-800 dark:text-white truncate">{lesson.title}</h3>
+                                   <div className="text-xs text-gray-500 dark:text-gray-400 font-medium flex items-center gap-2 mt-1">
+                                       <span className="bg-gray-100 dark:bg-gray-700 px-2 py-0.5 rounded text-[10px] uppercase tracking-wider">
+                                           {(lesson as any).savedAt ? new Date((lesson as any).savedAt).toLocaleDateString() : 'Saved'}
+                                       </span>
+                                       <span>{lesson.questions.length} Qs</span>
+                                   </div>
+                               </div>
+                               <div className="flex items-center gap-2">
+                                   <button 
+                                       onClick={() => handleDeleteLesson(lesson.id)}
+                                       className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-colors"
+                                   >
+                                       <Trash2 size={20} />
+                                   </button>
+                                   <Button size="sm" onClick={() => handleLessonAttempt(lesson)} className="flex items-center gap-2 shadow-none">
+                                       <PlayCircle size={16} fill="currentColor" className="text-white/50" /> Play
+                                   </Button>
+                               </div>
+                           </div>
+                       ))
+                   )}
+               </div>
+
+               <div className="p-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 pb-safe">
+                   <Button 
+                       fullWidth 
+                       variant="outline" 
+                       onClick={handleDownload} 
+                       disabled={isDownloading}
+                       className="flex items-center justify-center gap-2 border-2"
+                   >
+                       {isDownloading ? <Loader2 size={20} className="animate-spin" /> : <Download size={20} />}
+                       {isDownloading ? 'Downloading...' : 'Download New Lessons'}
+                   </Button>
                </div>
            </div>
        )}
@@ -171,15 +257,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
           {/* Main Learning Path */}
           <div className="lg:col-span-2 flex flex-col items-center space-y-6 py-4 order-2 lg:order-1">
              
-             {/* Offline Widget */}
-             <div className="w-full max-w-md flex justify-end mb-2">
+             {/* Offline Library Widget (Card) */}
+             <div className="w-full max-w-md mb-2">
                  <button 
-                    onClick={handleDownload}
-                    disabled={isDownloading}
-                    className="flex items-center gap-2 text-xs font-bold text-gray-400 dark:text-gray-500 hover:text-brand-blue transition-colors"
+                    onClick={() => setShowOfflineManager(true)}
+                    className="w-full bg-teal-50 dark:bg-teal-900/20 border-2 border-teal-100 dark:border-teal-800 p-4 rounded-2xl flex items-center justify-between shadow-sm hover:bg-teal-100 dark:hover:bg-teal-900/30 transition-all group active:scale-[0.98]"
                  >
-                     {isDownloading ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
-                     {isDownloading ? 'Downloading...' : `Offline Lessons Available: ${offlineCount}`}
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white dark:bg-teal-900 p-2 rounded-xl shadow-sm text-teal-500 dark:text-teal-400 group-hover:scale-110 transition-transform">
+                             <WifiOff size={20} />
+                        </div>
+                        <div className="text-left">
+                            <h3 className="text-teal-900 dark:text-teal-100 font-extrabold text-sm uppercase tracking-wide">Offline Library</h3>
+                            <p className="text-teal-700 dark:text-teal-300 text-xs font-bold">{offlineCount} lessons ready</p>
+                        </div>
+                    </div>
+                    <div className="bg-white dark:bg-teal-900 text-teal-600 dark:text-teal-300 px-3 py-1.5 rounded-lg font-bold text-xs shadow-sm border border-teal-100 dark:border-teal-700">
+                        Manage
+                    </div>
                  </button>
              </div>
 
