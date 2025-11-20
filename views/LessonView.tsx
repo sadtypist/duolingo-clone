@@ -1,12 +1,11 @@
 
-
 import React, { useState, useEffect, useRef } from 'react';
 import { UserProfile, Lesson, QuestionType, DailyGoal } from '../types';
 import { generateLesson, validateTranslation } from '../services/geminiService';
-import { completeLesson, popOfflineLesson } from '../services/storageService';
+import { completeLesson, getFirstOfflineLesson, deleteOfflineLesson } from '../services/storageService';
 import { LANGUAGES, XP_PER_LESSON, ACHIEVEMENTS } from '../constants';
 import { Button } from '../components/Button';
-import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame, ArrowRight, Lightbulb, Zap, Download, CheckCircle, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Check, X, Loader2, Trophy, Dumbbell, Volume2, Mic, MicOff, WifiOff, Keyboard, BookA, AlertTriangle, Feather, Target, Flame, ArrowRight, Lightbulb, Zap, Download, CheckCircle, AlertCircle, RotateCcw } from 'lucide-react';
 
 // Polyfill for SpeechRecognition types
 declare global {
@@ -66,11 +65,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   const [correctQuestions, setCorrectQuestions] = useState<string[]>([]); 
   const [incorrectQuestions, setIncorrectQuestions] = useState<string[]>([]); 
   const [correctCount, setCorrectCount] = useState(0);
+  const [reviewedCount, setReviewedCount] = useState(0);
   
   // Summary State
   const [lessonResult, setLessonResult] = useState<{
     xpGained: number;
     correctCount: number;
+    reviewedCount: number;
     totalQuestions: number;
     newAchievements: string[];
     updatedProfile: UserProfile;
@@ -104,7 +105,8 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
         // Check Offline Status (skip for character lessons as they are dynamic/short usually, or fallback)
         if (!navigator.onLine && focusCharacters.length === 0) {
-            const offlineLesson = popOfflineLesson(currentLang.code);
+            // Use getFirstOfflineLesson (peek) instead of pop (consume)
+            const offlineLesson = getFirstOfflineLesson(currentLang.code);
             if (offlineLesson) {
                 setLesson(offlineLesson);
                 setIsOfflineMode(true);
@@ -118,6 +120,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
         
         const progress = user.progress[currentLang.code];
         const userLevel = progress?.level || 1;
+        const proficiency = progress?.proficiency || 'Beginner';
         // Prioritize recent weak areas for practice
         const weakAreas = progress?.weakAreas || [];
         
@@ -134,12 +137,13 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
             isPractice, 
             focusCharacters,
             difficulty,
-            questionCount
+            questionCount,
+            proficiency
           );
           setLesson(newLesson);
         } catch (e) {
           // Fallback if API fails even if navigator says online
-          const offlineLesson = popOfflineLesson(currentLang.code);
+          const offlineLesson = getFirstOfflineLesson(currentLang.code);
           if (offlineLesson && focusCharacters.length === 0) {
              setLesson(offlineLesson);
              setIsOfflineMode(true);
@@ -197,6 +201,11 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
     recognition.onerror = (event: any) => {
+      // Handle 'no-speech' gracefully as it happens on silence
+      if (event.error === 'no-speech') {
+        setIsListening(false);
+        return;
+      }
       console.error("Speech error", event.error);
       setIsListening(false);
     };
@@ -274,15 +283,45 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
     if (isCorrect) {
       setFeedback('correct');
-      setCorrectCount(prev => prev + 1);
-      setCorrectQuestions(prev => [...prev, topic]);
+      if (currentQ.isReview) {
+          setReviewedCount(prev => prev + 1);
+      } else {
+          setCorrectCount(prev => prev + 1);
+          setCorrectQuestions(prev => [...prev, topic]);
+      }
       playSuccessSound();
     } else {
       setFeedback('incorrect');
       setIncorrectQuestions(prev => [...prev, topic]);
       playErrorSound();
+
+      // Add failed question to end of lesson for review
+      if (lesson) {
+        setLesson(prev => {
+           if (!prev) return null;
+           const reviewQuestion = { ...currentQ, isReview: true };
+           return {
+               ...prev,
+               questions: [...prev.questions, reviewQuestion]
+           };
+        });
+      }
     }
     setIsChecking(false);
+  };
+
+  const handlePrevious = () => {
+    if (currentQuestionIndex > 0) {
+      setFeedback(null);
+      setSelectedOption(null);
+      setSpokenText('');
+      setTypedAnswer('');
+      setIsListening(false);
+      setIsChecking(false);
+      setShowHint(false);
+      window.speechSynthesis.cancel();
+      setCurrentQuestionIndex(prev => prev - 1);
+    }
   };
 
   const handleNext = () => {
@@ -325,8 +364,15 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
       questionsTotal: lesson.questions.length,
       questionsCorrect: correctCount,
       weakTopicsDetected: incorrectQuestions,
-      strongTopicsDetected: correctQuestions
+      strongTopicsDetected: correctQuestions,
+      reviewedCount: reviewedCount
     }, isPractice);
+
+    // CONSUME OFFLINE LESSON
+    // If we are in offline mode (or this was a specific offline lesson), delete it now that it's finished.
+    if (isOfflineMode && lesson) {
+      deleteOfflineLesson(lesson.id);
+    }
 
     // Deduplicate and segregate topics
     const uniqueWeak = [...new Set(incorrectQuestions)];
@@ -335,6 +381,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
     setLessonResult({
         xpGained: result.xpGainedTotal,
         correctCount: correctCount,
+        reviewedCount: reviewedCount,
         totalQuestions: lesson.questions.length,
         newAchievements: result.newAchievements,
         updatedProfile: result.profile,
@@ -367,26 +414,26 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
                 {/* Explicit Emerald/Green colors for "Easy" to maintain semantic meaning regardless of theme */}
                 <button onClick={() => setDifficulty('Easy')} className="group relative p-6 rounded-3xl border-b-4 border-emerald-500 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-500 active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-500 group-hover:text-white uppercase tracking-wide">Easy</span>
+                      <span className="text-xl font-black text-emerald-600 dark:text-emerald-500 group-hover:text-white uppercase tracking-wide">Relaxed</span>
                       <Feather className="text-emerald-500 group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-emerald-100 text-left">Relaxed pace with simple concepts.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-emerald-100 text-left">Simple vocabulary and clear context.</p>
                 </button>
 
                 <button onClick={() => setDifficulty('Medium')} className="group relative p-6 rounded-3xl border-b-4 border-brand-blue bg-blue-50 dark:bg-blue-900/20 hover:bg-brand-blue active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                       <span className="text-xl font-black text-brand-blue-dark dark:text-blue-300 group-hover:text-white uppercase tracking-wide">Medium</span>
+                       <span className="text-xl font-black text-brand-blue-dark dark:text-blue-300 group-hover:text-white uppercase tracking-wide">Standard</span>
                        <Target className="text-brand-blue group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-blue-100 text-left">Standard challenge for your level.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-blue-100 text-left">Balanced complexity for your level.</p>
                 </button>
 
                 <button onClick={() => setDifficulty('Hard')} className="group relative p-6 rounded-3xl border-b-4 border-brand-red bg-red-50 dark:bg-red-900/20 hover:bg-brand-red active:border-b-0 active:translate-y-1 transition-all">
                    <div className="flex items-center justify-between mb-2">
-                       <span className="text-xl font-black text-brand-red dark:text-red-400 group-hover:text-white uppercase tracking-wide">Hard</span>
+                       <span className="text-xl font-black text-brand-red dark:text-red-400 group-hover:text-white uppercase tracking-wide">Challenging</span>
                        <Flame className="text-brand-red group-hover:text-white" size={32} strokeWidth={2.5} />
                    </div>
-                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-red-100 text-left">Complex topics and faster speed.</p>
+                   <p className="text-sm font-bold text-gray-500 dark:text-gray-400 group-hover:text-red-100 text-left">Complex topics and advanced grammar.</p>
                 </button>
              </div>
         </div>
@@ -426,7 +473,16 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
   // SUMMARY SCREEN
   if (lessonResult) {
-    const accuracy = Math.round((lessonResult.correctCount / lessonResult.totalQuestions) * 100);
+    // Accuracy calculation: Correct / (Total - Reviewed) (Roughly approximating First Try Accuracy)
+    // We want to filter out reviewed questions from the denominator to show 'First Try Accuracy'
+    // Or calculate simply: (First Try Correct) / (Total Unique Questions Attempted)
+    // Total unique questions is roughly totalQuestions - reviewedCount (assuming reviewed questions are duplicates)
+    // But wait, lesson.questions grows when we append review questions.
+    // Let's assume 'totalQuestions' in lessonResult is the FINAL length.
+    // Actually, logic: original length = totalQuestions - reviewedCount.
+    // Let's simplify display: accuracy based on correctCount (first try) vs (totalQuestions - reviewedCount)
+    const uniqueQuestionsCount = Math.max(1, lessonResult.totalQuestions - lessonResult.reviewedCount);
+    const accuracy = Math.round((lessonResult.correctCount / uniqueQuestionsCount) * 100);
 
     return (
       <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -456,15 +512,23 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
             )}
 
             {/* Stats Grid */}
-            <div className="grid grid-cols-2 gap-4 w-full mb-8">
+            <div className={`grid ${lessonResult.reviewedCount > 0 ? 'grid-cols-3' : 'grid-cols-2'} gap-4 w-full mb-8`}>
                 <div className="bg-gray-50 dark:bg-gray-700 border-2 border-gray-100 dark:border-gray-600 rounded-2xl p-4 text-center">
-                    <div className="text-sm font-bold text-gray-400 uppercase mb-1">Accuracy</div>
-                    <div className="text-3xl font-black text-gray-700 dark:text-white">{accuracy}%</div>
+                    <div className="text-xs font-bold text-gray-400 uppercase mb-1">Accuracy</div>
+                    <div className="text-2xl font-black text-gray-700 dark:text-white">{accuracy}%</div>
                 </div>
                 <div className="bg-gray-50 dark:bg-gray-700 border-2 border-gray-100 dark:border-gray-600 rounded-2xl p-4 text-center">
-                    <div className="text-sm font-bold text-gray-400 uppercase mb-1">Correct</div>
-                    <div className="text-3xl font-black text-brand-green">{lessonResult.correctCount}</div>
+                    <div className="text-xs font-bold text-gray-400 uppercase mb-1">Correct</div>
+                    <div className="text-2xl font-black text-brand-green">{lessonResult.correctCount}</div>
                 </div>
+                {lessonResult.reviewedCount > 0 && (
+                   <div className="bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-100 dark:border-amber-800 rounded-2xl p-4 text-center">
+                      <div className="text-xs font-bold text-amber-500/80 uppercase mb-1 flex items-center justify-center gap-1">
+                         <RotateCcw size={10} /> Reviewed
+                      </div>
+                      <div className="text-2xl font-black text-amber-500">{lessonResult.reviewedCount}</div>
+                   </div>
+                )}
             </div>
 
             {/* Performance Analysis */}
@@ -557,6 +621,8 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   // Ensure we have a currentQ before rendering question content
   if (!currentQ) return null;
 
+  // Progress calculation: If reviewed questions are added, length increases, so progress might fluctuate visually
+  // Standard fix: Use initial length or just accept dynamic bar. Accepting dynamic for now as it shows work remaining.
   const progressPercent = ((currentQuestionIndex) / lesson.questions.length) * 100;
   const themeBg = isPractice ? 'bg-purple-500' : 'bg-brand-green';
   const isSpeaking = currentQ.type === QuestionType.SPEAKING;
@@ -570,7 +636,7 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
   else canCheck = !!selectedOption;
 
   return (
-    <div className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg relative transition-colors duration-300">
+    <div key={currentQuestionIndex} className="flex flex-col h-full max-w-lg mx-auto bg-white dark:bg-gray-800 sm:border-x border-gray-200 dark:border-gray-700 sm:shadow-lg relative transition-colors duration-300">
       {/* Offline Indicator - Enhanced visibility */}
       {isOfflineMode && (
         <div className="bg-amber-500 dark:bg-amber-600 text-white py-3 px-4 animate-in slide-in-from-top z-30 shadow-md">
@@ -619,9 +685,15 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
 
       {/* Question Area - Scrollable with Center/Scroll logic */}
       <div className="flex-1 overflow-y-auto w-full relative">
-        <div className="min-h-full flex flex-col justify-center p-6 pb-12">
+        <div className="min-h-full flex flex-col justify-center p-6 pb-12 animate-in fade-in slide-in-from-right-4 duration-300">
             
             <div className="mb-6">
+              {currentQ.isReview && (
+                 <div className="inline-flex items-center gap-2 mb-2 px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 text-xs font-extrabold uppercase tracking-wider animate-in fade-in slide-in-from-top-1">
+                    <RotateCcw size={14} strokeWidth={2.5} />
+                    <span>Review</span>
+                 </div>
+              )}
               {currentQ.type === QuestionType.FILL_BLANK && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Fill in the blank</span>}
               {(currentQ.type === QuestionType.TRANSLATE || currentQ.type === QuestionType.SENTENCE_TRANSLATE) && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Translate this sentence</span>}
               {currentQ.type === QuestionType.LISTENING && <span className="text-xs font-black text-gray-400 uppercase tracking-wider">Listen and select</span>}
@@ -830,7 +902,16 @@ export const LessonView: React.FC<LessonViewProps> = ({ user, onComplete, onExit
           
           {!feedback && (
             <div className="flex-1 flex gap-3 items-center">
-               <div className="flex-none">
+               <div className="flex-none flex items-center gap-2">
+                  <Button
+                    variant="ghost"
+                    onClick={handlePrevious}
+                    disabled={currentQuestionIndex === 0}
+                    className={`text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 ${currentQuestionIndex === 0 ? 'opacity-20' : ''}`}
+                    title="Previous Question"
+                  >
+                    <ArrowLeft size={24} strokeWidth={3} />
+                  </Button>
                   <Button 
                     variant="ghost" 
                     onClick={() => setShowSkipModal(true)}

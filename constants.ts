@@ -1,5 +1,8 @@
 
 
+
+
+
 import { Language, UserProfile, Achievement, DailyGoal, CharacterGroup } from './types';
 
 export const LANGUAGES: Language[] = [
@@ -277,6 +280,84 @@ export const CHARACTER_DATA: Record<string, CharacterGroup[]> = {
          { symbol: 'Ј', romanization: 'j' }, { symbol: 'Љ', romanization: 'lj' }, { symbol: 'Њ', romanization: 'nj' }, { symbol: 'Ћ', romanization: 'ć' }, { symbol: 'Џ', romanization: 'dž' }
       ]
     }
+  ],
+  'pl': [
+    {
+      id: 'pl_special',
+      name: 'Polish Unique Letters',
+      characters: [
+        { symbol: 'Ą', romanization: 'ą' }, { symbol: 'Ć', romanization: 'ć' }, { symbol: 'Ę', romanization: 'ę' }, { symbol: 'Ł', romanization: 'ł' },
+        { symbol: 'Ń', romanization: 'ń' }, { symbol: 'Ó', romanization: 'ó' }, { symbol: 'Ś', romanization: 'ś' }, { symbol: 'Ź', romanization: 'ź' }, { symbol: 'Ż', romanization: 'ż' }
+      ]
+    }
+  ],
+  'de': [
+    {
+      id: 'de_umlauts',
+      name: 'German Special Characters',
+      characters: [
+        { symbol: 'Ä', romanization: 'ae' }, { symbol: 'Ö', romanization: 'oe' }, { symbol: 'Ü', romanization: 'ue' }, { symbol: 'ß', romanization: 'ss' }
+      ]
+    }
+  ],
+  'es': [
+     {
+      id: 'es_accents',
+      name: 'Spanish Accents',
+      characters: [
+        { symbol: 'Á', romanization: 'á' }, { symbol: 'É', romanization: 'é' }, { symbol: 'Í', romanization: 'í' }, { symbol: 'Ó', romanization: 'ó' }, { symbol: 'Ú', romanization: 'ú' },
+        { symbol: 'Ñ', romanization: 'ñ' }, { symbol: 'Ü', romanization: 'ü' }, { symbol: '¡', romanization: '!' }, { symbol: '¿', romanization: '?' }
+      ]
+    }
+  ],
+  'fr': [
+    {
+       id: 'fr_accents_1',
+       name: 'French Accents 1',
+       characters: [
+         { symbol: 'À', romanization: 'à' }, { symbol: 'Â', romanization: 'â' }, { symbol: 'Ç', romanization: 'ç' }, { symbol: 'É', romanization: 'é' }, { symbol: 'È', romanization: 'è' },
+         { symbol: 'Ê', romanization: 'ê' }, { symbol: 'Ë', romanization: 'ë' }
+       ]
+    },
+    {
+       id: 'fr_accents_2',
+       name: 'French Accents 2',
+       characters: [
+         { symbol: 'Î', romanization: 'î' }, { symbol: 'Ï', romanization: 'ï' }, { symbol: 'Ô', romanization: 'ô' }, { symbol: 'Œ', romanization: 'oe' }, { symbol: 'Ù', romanization: 'ù' },
+         { symbol: 'Û', romanization: 'û' }, { symbol: 'Ü', romanization: 'ü' }
+       ]
+    }
+  ],
+  'it': [
+    {
+      id: 'it_accents',
+      name: 'Italian Accents',
+      characters: [
+        { symbol: 'À', romanization: 'à' }, { symbol: 'È', romanization: 'è' }, { symbol: 'É', romanization: 'é' }, { symbol: 'Ì', romanization: 'ì' },
+        { symbol: 'Ò', romanization: 'ò' }, { symbol: 'Ó', romanization: 'ó' }, { symbol: 'Ù', romanization: 'ù' }
+      ]
+    }
+  ],
+  'pt': [
+    {
+      id: 'pt_accents',
+      name: 'Portuguese Special Chars',
+      characters: [
+        { symbol: 'Á', romanization: 'á' }, { symbol: 'Â', romanization: 'â' }, { symbol: 'Ã', romanization: 'ã' }, { symbol: 'À', romanization: 'à' }, { symbol: 'Ç', romanization: 'ç' },
+        { symbol: 'É', romanization: 'é' }, { symbol: 'Ê', romanization: 'ê' }, { symbol: 'Í', romanization: 'í' }, { symbol: 'Ó', romanization: 'ó' }, { symbol: 'Ô', romanization: 'ô' },
+        { symbol: 'Õ', romanization: 'õ' }, { symbol: 'Ú', romanization: 'ú' }
+      ]
+    }
+  ],
+  'tr': [
+    {
+      id: 'tr_special',
+      name: 'Turkish Special Letters',
+      characters: [
+        { symbol: 'Ç', romanization: 'ch' }, { symbol: 'Ğ', romanization: 'yumusak g' }, { symbol: 'I', romanization: 'i (no dot)' },
+        { symbol: 'İ', romanization: 'i' }, { symbol: 'Ö', romanization: 'oe' }, { symbol: 'Ş', romanization: 'sh' }, { symbol: 'Ü', romanization: 'ue' }
+      ]
+    }
   ]
 };
 
@@ -332,6 +413,7 @@ export const AVATARS = [
 export const DEFAULT_USER: UserProfile = {
   id: 'guest',
   name: '',
+  username: 'guest_user',
   avatar: '🧑',
   nativeLanguageCode: 'en-US', // Default to US English
   joinDate: new Date().toISOString(),

@@ -1,11 +1,10 @@
 
-
 import React, { useRef, useState, useEffect } from 'react';
 import { UserProfile, LanguageProgress } from '../types';
-import { LANGUAGES, ACHIEVEMENTS } from '../constants';
+import { LANGUAGES, ACHIEVEMENTS, MAX_ENERGY } from '../constants';
 import { Button } from '../components/Button';
-import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus, Calendar, AlertCircle, LogOut, Sparkles, X, Wand2, Loader2 } from 'lucide-react';
-import { saveProfile } from '../services/storageService';
+import { Camera, Flame, Zap, Trophy, Edit2, BarChart2, UserPlus, Calendar, AlertCircle, LogOut, Sparkles, X, Wand2, Loader2, Heart, Check } from 'lucide-react';
+import { saveProfile, calculateGlobalScore } from '../services/storageService';
 import { generateMascotImage } from '../services/geminiService';
 
 interface ProfileProps {
@@ -18,6 +17,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [tempName, setTempName] = useState(user.name);
+  const [tempUsername, setTempUsername] = useState(user.username);
   
   // AI Generation States
   const [showAiModal, setShowAiModal] = useState(false);
@@ -28,7 +28,8 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
   // Sync tempName if user prop changes externally
   useEffect(() => {
     setTempName(user.name);
-  }, [user.name]);
+    setTempUsername(user.username);
+  }, [user.name, user.username]);
 
   const handleAvatarClick = () => {
     fileInputRef.current?.click();
@@ -46,25 +47,30 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
     }
   };
 
-  const handleSaveName = () => {
-    if (tempName.trim() === '') {
-        setTempName(user.name);
-        setIsEditing(false);
-        return;
-    }
-    if (tempName !== user.name) {
-        const updated = { ...user, name: tempName };
+  const handleSaveProfile = () => {
+    const newName = tempName.trim() || user.name;
+    const newUsername = tempUsername.trim() || user.username;
+
+    if (newName !== user.name || newUsername !== user.username) {
+        const updated = { ...user, name: newName, username: newUsername };
         onUpdateUser(updated);
     }
     setIsEditing(false);
   };
 
+  const handleCancelEdit = () => {
+    setTempName(user.name);
+    setTempUsername(user.username);
+    setIsEditing(false);
+  };
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
       if (e.key === 'Enter') {
-          handleSaveName();
+          e.preventDefault();
+          handleSaveProfile();
       } else if (e.key === 'Escape') {
-          setTempName(user.name);
-          setIsEditing(false);
+          e.preventDefault();
+          handleCancelEdit();
       }
   };
 
@@ -89,17 +95,55 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
   // Calculated stats
   const progressValues = Object.values(user.progress) as LanguageProgress[];
   const totalXP = progressValues.reduce((acc, curr) => acc + curr.xp, 0);
-  const totalLessons = progressValues.reduce((acc, curr) => acc + curr.lessonsCompleted, 0);
+  const totalLessons = progressValues.reduce((acc, curr) => curr.lessonsCompleted, 0);
   const activeLanguages = Object.keys(user.progress).length;
   
-  // Language Score Calculation (Mock formula)
-  const languageScore = Math.floor((totalXP * 0.5) + (totalLessons * 10) + (activeLanguages * 50));
+  // Global Level Calculation (1000 XP per level)
+  const XP_PER_GLOBAL_LEVEL = 1000;
+  const globalLevel = Math.floor(totalXP / XP_PER_GLOBAL_LEVEL) + 1;
+  const nextLevelXP = globalLevel * XP_PER_GLOBAL_LEVEL;
+  const xpProgressInLevel = totalXP % XP_PER_GLOBAL_LEVEL;
+  const globalLevelProgress = (xpProgressInLevel / XP_PER_GLOBAL_LEVEL) * 100;
+
+  // Language Score Calculation using shared service
+  const languageScore = calculateGlobalScore(user);
 
   // Format Date Helper
   const formatDate = (dateStr?: string) => {
       if (!dateStr) return 'Never';
       return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
+
+  // Streak Calendar Logic
+  const getWeekDays = () => {
+    const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+    const today = new Date();
+    const currentDayOfWeek = today.getDay(); // 0=Sun, 1=Mon...
+    const adjCurrentDay = currentDayOfWeek === 0 ? 6 : currentDayOfWeek - 1; // 0=Mon, 6=Sun
+
+    const lastActive = new Date(user.lastActiveDate);
+    // Calculate diff in days between today and last active (midnight comparison)
+    const t1 = new Date(today); t1.setHours(0,0,0,0);
+    const t2 = new Date(lastActive); t2.setHours(0,0,0,0);
+    const daysSinceActive = Math.floor((t1.getTime() - t2.getTime()) / (1000 * 3600 * 24));
+    
+    return days.map((label, index) => {
+        let isActive = false;
+        // Check if this index corresponds to a day in the past (or today)
+        if (index <= adjCurrentDay) {
+             const daysAgo = adjCurrentDay - index;
+             // Logic: Is this day within the streak window?
+             // Streak window ends at 'lastActive' (which is 'daysSinceActive' ago)
+             // Window starts 'user.streak' days before that.
+             if (daysAgo >= daysSinceActive && daysAgo < (daysSinceActive + user.streak)) {
+                 isActive = true;
+             }
+        }
+        return { label, isActive, isToday: index === adjCurrentDay };
+    });
+  };
+
+  const weekData = getWeekDays();
 
   return (
     <div className="h-full overflow-y-auto bg-white dark:bg-gray-800 transition-colors duration-300">
@@ -108,7 +152,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
       {showAiModal && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm animate-in fade-in duration-200">
               <div className="bg-white dark:bg-gray-900 rounded-3xl w-full max-w-md shadow-2xl border-2 border-brand-blue/20 overflow-hidden flex flex-col max-h-[90vh]">
-                  <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center flex-shrink-0">
+                  <div className="p-4 border-b border-gray-100 dark:border-gray-800 flex justify-between items-center flex-shrink-0 bg-white dark:bg-gray-900 z-10">
                       <h3 className="font-black text-lg flex items-center gap-2 text-gray-800 dark:text-white">
                           <Sparkles className="text-brand-blue" size={20} /> Design Mascot
                       </h3>
@@ -117,7 +161,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                       </button>
                   </div>
                   
-                  <div className="p-6 flex flex-col gap-4 overflow-y-auto">
+                  <div className="p-6 flex-1 overflow-y-auto min-h-0 flex flex-col gap-6">
                       <div className="relative aspect-square w-full bg-gray-50 dark:bg-gray-800 rounded-2xl border-2 border-dashed border-gray-200 dark:border-gray-700 flex items-center justify-center overflow-hidden flex-shrink-0">
                           {isGenerating ? (
                               <div className="flex flex-col items-center text-brand-blue animate-pulse">
@@ -143,24 +187,31 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                               placeholder="E.g., A cool robot learning spanish..."
                           />
                       </div>
-                      
-                      <div className="flex gap-3 pt-2 flex-shrink-0">
-                          <Button 
-                              fullWidth 
-                              variant="secondary" 
-                              onClick={handleGenerateImage}
-                              disabled={isGenerating}
-                          >
-                              {isGenerating ? 'Generating...' : 'Generate'}
-                          </Button>
+                  </div>
+                  
+                  {/* Modal Footer */}
+                  <div className="p-4 border-t border-gray-100 dark:border-gray-800 bg-gray-50/50 dark:bg-gray-900 flex-shrink-0">
+                      <div className="flex flex-col sm:flex-row gap-3">
+                          <div className="flex-1">
+                            <Button 
+                                fullWidth 
+                                variant="secondary" 
+                                onClick={handleGenerateImage}
+                                disabled={isGenerating}
+                            >
+                                {isGenerating ? 'Generating...' : 'Generate'}
+                            </Button>
+                          </div>
                           {generatedImage && (
-                              <Button 
-                                  fullWidth 
-                                  variant="success" 
-                                  onClick={handleUseGeneratedImage}
-                              >
-                                  Use Avatar
-                              </Button>
+                              <div className="flex-1">
+                                <Button 
+                                    fullWidth 
+                                    variant="success" 
+                                    onClick={handleUseGeneratedImage}
+                                >
+                                    Use Avatar
+                                </Button>
+                              </div>
                           )}
                       </div>
                   </div>
@@ -234,45 +285,72 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
           </div>
 
           <div className="flex-1 text-center sm:text-left w-full">
-            <div className="flex items-center justify-center sm:justify-start gap-2 mb-2 h-10">
+            <div className="flex flex-col justify-center sm:justify-start gap-2 mb-4 min-h-[60px]">
               {isEditing ? (
-                 <input 
-                    value={tempName}
-                    onChange={(e) => setTempName(e.target.value)}
-                    onBlur={handleSaveName}
-                    onKeyDown={handleKeyDown}
-                    className="border-2 border-brand-blue rounded-xl px-3 py-1 font-extrabold text-xl text-gray-800 w-full max-w-[300px] outline-none focus:ring-2 focus:ring-brand-blue/20 bg-white dark:bg-gray-700 dark:text-white"
-                    autoFocus
-                    placeholder="Your Name"
-                 />
+                 <div className="flex flex-col gap-2 w-full max-w-[300px]">
+                     <input 
+                        value={tempName}
+                        onChange={(e) => setTempName(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        className="border-2 border-brand-blue rounded-xl px-3 py-2 font-extrabold text-xl text-gray-800 w-full outline-none focus:ring-2 focus:ring-brand-blue/20 bg-white dark:bg-gray-700 dark:text-white"
+                        autoFocus
+                        placeholder="Your Name"
+                     />
+                     <div className="flex items-center gap-2">
+                        <span className="text-gray-400 font-bold text-sm">@</span>
+                        <input 
+                            value={tempUsername}
+                            onChange={(e) => setTempUsername(e.target.value)}
+                            onKeyDown={handleKeyDown}
+                            className="border-2 border-gray-200 dark:border-gray-600 rounded-xl px-3 py-1 font-bold text-sm text-gray-600 dark:text-gray-300 w-full outline-none focus:border-brand-blue bg-gray-50 dark:bg-gray-800"
+                            placeholder="username"
+                        />
+                     </div>
+                     <div className="flex gap-2 mt-1">
+                        <Button size="sm" onClick={handleSaveProfile} className="py-1 h-8">Save</Button>
+                        <Button size="sm" variant="ghost" onClick={handleCancelEdit} className="py-1 h-8">Cancel</Button>
+                     </div>
+                 </div>
               ) : (
-                <div 
-                  onClick={() => setIsEditing(true)}
-                  className="group flex items-center gap-3 cursor-pointer py-1 px-2 -ml-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors max-w-full"
-                  title="Click to edit name"
-                >
-                  <h1 className="text-2xl font-extrabold text-gray-800 dark:text-white truncate max-w-[200px] sm:max-w-none">
-                    {user.name || (user.isGuest ? 'Guest User' : 'Your Name')}
-                  </h1>
-                  <Edit2 size={18} className="text-gray-300 group-hover:text-brand-blue transition-colors flex-shrink-0" />
+                <div className="flex flex-col">
+                    <div 
+                    onClick={() => setIsEditing(true)}
+                    className="group flex items-center gap-3 cursor-pointer py-1 -ml-2 px-2 rounded-xl hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors max-w-full w-fit"
+                    title="Click to edit profile"
+                    >
+                        <h1 className="text-2xl font-extrabold text-gray-800 dark:text-white truncate max-w-[200px] sm:max-w-none">
+                            {user.name || (user.isGuest ? 'Guest User' : 'Your Name')}
+                        </h1>
+                        <Edit2 size={18} className="text-gray-300 group-hover:text-brand-blue transition-colors flex-shrink-0" />
+                    </div>
+                    <p className="text-gray-400 font-bold text-sm pl-1">@{user.username}</p>
                 </div>
               )}
             </div>
             
-            {user.username && (
-                <p className="text-gray-400 font-bold text-sm mb-1">@{user.username}</p>
+            {!isEditing && (
+                <p className="text-gray-500 dark:text-gray-400 font-semibold mb-4">Joined {new Date(user.joinDate).toLocaleDateString()}</p>
             )}
-
-            <p className="text-gray-500 dark:text-gray-400 font-semibold">Joined {new Date(user.joinDate).toLocaleDateString()}</p>
             
-            <div className="flex gap-6 mt-6 justify-center sm:justify-start">
+            <div className="flex gap-6 mt-2 justify-center sm:justify-start flex-wrap">
                <div className="flex flex-col items-center sm:items-start">
                    <div className="text-xs font-bold text-gray-400 uppercase">Streak</div>
                    <div className="flex items-center gap-1 text-brand-yellow font-black text-2xl">
                       <Flame size={24} fill="currentColor" /> {user.streak}
                    </div>
                </div>
-               <div className="w-px bg-gray-200 dark:bg-gray-700 h-10"></div>
+               
+               <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 hidden sm:block"></div>
+               
+               <div className="flex flex-col items-center sm:items-start">
+                   <div className="text-xs font-bold text-gray-400 uppercase">Energy</div>
+                   <div className="flex items-center gap-1 text-brand-red font-black text-2xl">
+                      <Heart size={24} fill="currentColor" /> {user.energy}/{MAX_ENERGY}
+                   </div>
+               </div>
+
+               <div className="w-px bg-gray-200 dark:bg-gray-700 h-10 hidden sm:block"></div>
+
                <div className="flex flex-col items-center sm:items-start">
                    <div className="text-xs font-bold text-gray-400 uppercase">Total XP</div>
                    <div className="flex items-center gap-1 text-brand-blue font-black text-2xl">
@@ -283,28 +361,70 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
           </div>
         </div>
 
-        {/* Streak Section */}
-        <div className="bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-6 mb-6 flex items-center justify-between relative overflow-hidden">
+        {/* Enhanced Streak Section */}
+        <div className={`rounded-3xl p-6 mb-8 relative overflow-hidden shadow-lg transition-all duration-500 ${
+            user.streak > 0 
+            ? 'bg-gradient-to-br from-orange-500 via-orange-600 to-red-600 text-white shadow-orange-200 dark:shadow-none' 
+            : 'bg-white dark:bg-gray-800 border-2 border-gray-200 dark:border-gray-700 text-gray-800 dark:text-white'
+        }`}>
+            {/* Content */}
             <div className="relative z-10">
-                <h2 className="text-gray-400 font-extrabold text-xs uppercase tracking-widest mb-2">Daily Streak</h2>
-                <div className="flex items-center gap-4">
-                    <div className={`p-3 rounded-2xl ${user.streak > 0 ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-500' : 'bg-gray-100 dark:bg-gray-700 text-gray-400'}`}>
-                        <Flame size={32} fill={user.streak > 0 ? "currentColor" : "none"} className={user.streak > 0 ? "animate-pulse" : ""} />
-                    </div>
+                <div className="flex justify-between items-start mb-6">
                     <div>
-                         <div className="text-4xl font-black text-gray-800 dark:text-white leading-none">{user.streak}</div>
-                         <div className="text-xs font-bold text-gray-400">days in a row</div>
+                         <div className={`font-bold text-xs uppercase tracking-widest mb-1 ${user.streak > 0 ? 'text-orange-100' : 'text-gray-400'}`}>
+                            Current Streak
+                         </div>
+                         <div className="flex items-baseline gap-2">
+                             <span className={`text-6xl font-black ${user.streak > 0 ? 'text-white' : 'text-gray-300 dark:text-gray-600'}`}>
+                                 {user.streak}
+                             </span>
+                             <span className={`font-bold text-lg ${user.streak > 0 ? 'text-orange-100' : 'text-gray-400'}`}>days</span>
+                         </div>
+                    </div>
+                    <div className={`p-3 rounded-2xl ${user.streak > 0 ? 'bg-white/20 backdrop-blur-sm' : 'bg-gray-100 dark:bg-gray-700'}`}>
+                        <Flame size={32} className={user.streak > 0 ? 'text-white animate-pulse' : 'text-gray-300'} fill={user.streak > 0 ? 'currentColor' : 'none'} />
                     </div>
                 </div>
+
+                {/* Week Visualizer */}
+                <div className="flex justify-between items-center gap-2 mb-6">
+                     {weekData.map((day, i) => (
+                         <div key={i} className="flex flex-col items-center gap-2">
+                             <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-sm font-black border-2 transition-all ${
+                                 day.isActive 
+                                   ? (user.streak > 0 ? 'bg-white text-orange-600 border-white scale-110 shadow-sm' : 'bg-brand-green text-white border-brand-green') 
+                                   : (user.streak > 0 ? 'bg-white/10 border-white/20 text-white/40' : 'bg-transparent border-gray-200 dark:border-gray-700 text-gray-400')
+                             }`}>
+                                 {day.isActive ? <Check size={16} strokeWidth={4} /> : day.label}
+                             </div>
+                             {day.isToday && user.streak > 0 && (
+                                 <div className="w-1.5 h-1.5 rounded-full bg-white/50"></div>
+                             )}
+                         </div>
+                     ))}
+                </div>
+
+                {/* Motivation */}
+                <div className={`text-sm font-bold ${user.streak > 0 ? 'text-orange-50' : 'text-gray-400'} flex items-center gap-2`}>
+                    {user.streak > 0 ? (
+                        <>
+                           <Sparkles size={16} />
+                           <span>Keep the fire burning! Practice tomorrow to reach {user.streak + 1} days!</span>
+                        </>
+                    ) : (
+                        <span>Start a lesson today to ignite your streak!</span>
+                    )}
+                </div>
             </div>
-            <div className="relative z-10 text-right max-w-[180px] hidden sm:block">
-                 <p className="text-sm font-bold text-gray-600 dark:text-gray-300 leading-snug">
-                    {user.streak > 0 
-                        ? "You're on fire! Don't stop now!" 
-                        : "Complete a lesson to start your streak!"}
-                 </p>
-            </div>
-             <Flame size={160} className={`absolute -bottom-10 -right-10 z-0 transform rotate-12 opacity-10 ${user.streak > 0 ? 'text-orange-500' : 'text-gray-400 dark:text-gray-600'}`} />
+            
+            {/* Background Decor */}
+            {user.streak > 0 && (
+                 <>
+                    <div className="absolute -top-24 -right-24 w-64 h-64 bg-orange-400/30 rounded-full blur-3xl pointer-events-none"></div>
+                    <div className="absolute -bottom-24 -left-24 w-64 h-64 bg-red-500/30 rounded-full blur-3xl pointer-events-none"></div>
+                    <Flame size={200} className="absolute -bottom-10 -right-10 text-white/5 transform rotate-12 pointer-events-none" />
+                 </>
+            )}
         </div>
 
         {/* Global Stats */}
@@ -329,7 +449,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
           </div>
           <div className="border-2 border-gray-200 dark:border-gray-700 rounded-2xl p-4 flex items-center gap-4 bg-white dark:bg-gray-800">
             <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-xl text-brand-green">
-              <CheckCircleIcon />
+              <Check size={24} />
             </div>
             <div>
               <div className="font-extrabold text-xl text-gray-800 dark:text-white">{totalLessons}</div>
@@ -351,6 +471,40 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
               </div>
             )
           })}
+        </div>
+
+        {/* Global Level Progress */}
+        <div className="mb-8 bg-gradient-to-r from-violet-600 to-indigo-600 dark:from-violet-900 dark:to-indigo-900 rounded-2xl p-5 text-white shadow-md relative overflow-hidden">
+            <div className="relative z-10 flex flex-col gap-2">
+                <div className="flex justify-between items-end">
+                    <div>
+                         <div className="text-violet-200 text-xs font-bold uppercase tracking-widest mb-1">Global Level</div>
+                         <div className="text-3xl font-black leading-none">{globalLevel}</div>
+                    </div>
+                    <div className="text-right">
+                         <div className="text-violet-200 text-xs font-bold uppercase tracking-widest mb-1">Total XP</div>
+                         <div className="font-bold text-lg leading-none">{totalXP} <span className="text-violet-300 text-sm">/ {nextLevelXP}</span></div>
+                    </div>
+                </div>
+                
+                <div className="bg-black/20 h-4 rounded-full w-full overflow-hidden backdrop-blur-sm mt-2 border border-white/10">
+                    <div 
+                       className="bg-brand-yellow h-full rounded-full shadow-sm transition-all duration-1000 relative overflow-hidden"
+                       style={{ width: `${globalLevelProgress}%` }}
+                    >
+                        <div className="absolute inset-0 bg-white/20"></div>
+                    </div>
+                </div>
+                
+                <div className="flex justify-between items-center mt-1">
+                     <div className="text-[10px] font-bold text-violet-200">Current Level</div>
+                     <div className="text-[10px] font-bold text-violet-200">{nextLevelXP - totalXP} XP to Level {globalLevel + 1}</div>
+                </div>
+            </div>
+            
+            {/* Background Decoration */}
+            <Zap className="absolute -bottom-6 -right-6 text-white/5 w-40 h-40 rotate-12" />
+            <div className="absolute top-0 right-1/4 w-32 h-32 bg-white/5 rounded-full blur-3xl pointer-events-none"></div>
         </div>
 
         {/* Language Progress List */}
@@ -421,7 +575,7 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
                  {/* Weak Areas Footer (Subtle) */}
                  {hasWeakness && (
                    <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700 flex items-center gap-2">
-                      <span className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider">Review Needed:</span>
+                      <span className="text-[10px] font-bold text-red-500 dark:text-red-400 uppercase tracking-wider:">Review Needed:</span>
                       <div className="flex gap-1 flex-wrap">
                          {prog.weakAreas.map((area, i) => (
                              <span key={i} className="text-[10px] text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700 px-1.5 py-0.5 rounded font-semibold">
@@ -462,9 +616,3 @@ export const Profile: React.FC<ProfileProps> = ({ user, onUpdateUser, onLogout }
     </div>
   );
 };
-
-function CheckCircleIcon() {
-    return (
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-    )
-}

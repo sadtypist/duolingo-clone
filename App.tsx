@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { UserProfile, Lesson } from './types';
 import { DEFAULT_USER } from './constants';
 import { getProfile, saveProfile, consumeEnergy, logoutUser } from './services/storageService';
-import { Navigation } from './components/BottomNav.tsx';
+import { Navigation } from './components/BottomNav';
 import { LanguageSelection } from './views/LanguageSelection';
 import { Profile } from './views/Profile';
 import { Dashboard } from './views/Dashboard';
@@ -121,7 +121,8 @@ const App: React.FC = () => {
         xp: 0,
         level: 1,
         lessonsCompleted: 0,
-        weakAreas: []
+        weakAreas: [],
+        proficiency: 'Beginner' // Default proficiency
       };
     }
     handleUpdateUser(updatedUser);

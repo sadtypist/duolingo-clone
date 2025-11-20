@@ -1,6 +1,4 @@
-
-
-import { UserProfile, LanguageProgress, DailyGoal, OfflineLesson } from '../types';
+import { UserProfile, LanguageProgress, DailyGoal, OfflineLesson, ProficiencyLevel } from '../types';
 import { DEFAULT_USER, ACHIEVEMENTS, DEFAULT_GOALS, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
 
 // Keys
@@ -15,7 +13,9 @@ const getTodayStr = () => new Date().toISOString().split('T')[0];
 const getUsersMap = (): Record<string, UserProfile> => {
   try {
     const stored = localStorage.getItem(USERS_KEY);
-    return stored ? JSON.parse(stored) : {};
+    const parsed = stored ? JSON.parse(stored) : {};
+    // Ensure we return a valid object
+    return (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) ? parsed : {};
   } catch (e) {
     return {};
   }
@@ -24,6 +24,16 @@ const getUsersMap = (): Record<string, UserProfile> => {
 // Helper to save all users
 const saveUsersMap = (map: Record<string, UserProfile>) => {
   localStorage.setItem(USERS_KEY, JSON.stringify(map));
+};
+
+export const calculateGlobalScore = (user: UserProfile): number => {
+  const progressValues = Object.values(user.progress) as LanguageProgress[];
+  const totalXP = progressValues.reduce((acc, curr) => acc + curr.xp, 0);
+  const totalLessons = progressValues.reduce((acc, curr) => acc + curr.lessonsCompleted, 0);
+  const activeLanguages = Object.keys(user.progress).length;
+  
+  // Formula matching Profile view logic
+  return Math.floor((totalXP * 0.5) + (totalLessons * 10) + (activeLanguages * 50));
 };
 
 export const getProfile = (): UserProfile => {
@@ -154,7 +164,7 @@ export const registerUser = (email: string, password: string, name: string, user
     // Normalize: remove whitespace and lowercase
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (users[normalizedEmail]) {
+    if (Object.prototype.hasOwnProperty.call(users, normalizedEmail)) {
         return { success: false, message: 'Email already exists' };
     }
 
@@ -283,21 +293,16 @@ export const deleteOfflineLesson = (lessonId: string): void => {
   }
 };
 
-export const popOfflineLesson = (langCode: string): OfflineLesson | null => {
+export const getFirstOfflineLesson = (langCode: string): OfflineLesson | null => {
   try {
     const existingStr = localStorage.getItem(OFFLINE_LESSONS_KEY);
     if (!existingStr) return null;
-    let existing: OfflineLesson[] = JSON.parse(existingStr);
+    const existing: OfflineLesson[] = JSON.parse(existingStr);
     
-    const index = existing.findIndex(l => l.languageCode === langCode);
-    if (index === -1) return null;
-
-    const lesson = existing[index];
-    existing.splice(index, 1);
-    localStorage.setItem(OFFLINE_LESSONS_KEY, JSON.stringify(existing));
-    return lesson;
+    // Peek at the first lesson without deleting it
+    return existing.find(l => l.languageCode === langCode) || null;
   } catch (e) {
-    console.error("Failed to pop offline lesson", e);
+    console.error("Failed to get first offline lesson", e);
     return null;
   }
 };
@@ -311,6 +316,7 @@ interface LessonResult {
   questionsCorrect: number;
   weakTopicsDetected: string[];
   strongTopicsDetected: string[];
+  reviewedCount?: number;
 }
 
 export const completeLesson = (result: LessonResult, isPractice: boolean = false): { profile: UserProfile; newAchievements: string[]; goalsCompleted: DailyGoal[]; xpGainedTotal: number } => {
@@ -351,7 +357,8 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
     xp: 0,
     level: 1,
     lessonsCompleted: 0,
-    weakAreas: []
+    weakAreas: [],
+    proficiency: 'Beginner'
   };
 
   let newWeakAreas = [...(currentProgress.weakAreas || [])];
@@ -364,21 +371,44 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
   const newXp = currentProgress.xp + xpGainedTotal;
   const newLevel = Math.floor(newXp / 100) + 1;
   const lessonsIncrement = isPractice ? 0 : 1;
+  const newLessonsCompleted = currentProgress.lessonsCompleted + lessonsIncrement;
+
+  // --- Automatic Proficiency Update Logic ---
+  // Calculate score specific to this language to determine proficiency
+  const languageSpecificScore = (newXp * 0.5) + (newLessonsCompleted * 10);
+  let newProficiency: ProficiencyLevel = 'Beginner';
+  if (languageSpecificScore >= 150) {
+      newProficiency = 'Advanced';
+  } else if (languageSpecificScore >= 50) {
+      newProficiency = 'Intermediate';
+  } else {
+      newProficiency = 'Beginner';
+  }
+  // ------------------------------------------
 
   const updatedProgress: LanguageProgress = {
     ...currentProgress,
+    proficiency: newProficiency,
     xp: newXp,
     level: newLevel,
-    lessonsCompleted: currentProgress.lessonsCompleted + lessonsIncrement,
+    lessonsCompleted: newLessonsCompleted,
     weakAreas: newWeakAreas,
     lastPlayed: new Date().toISOString()
   };
 
   const unlockedIds: string[] = [];
+  
+  // Calculate global stats for achievements
   const totalXP = Object.values(profile.progress).reduce((acc, p) => acc + p.xp, 0) + xpGainedTotal; 
   const totalLessons = Object.values(profile.progress).reduce((acc, p) => acc + p.lessonsCompleted, 0) + lessonsIncrement;
   const languageCount = Object.keys(profile.progress).length;
-  const score = Math.floor((totalXP * 0.5) + (totalLessons * 10) + (languageCount * 50));
+  
+  // Temporary profile state to calculate score for achievement check
+  const tempProfile = {
+      ...profile,
+      progress: { ...profile.progress, [langCode]: updatedProgress }
+  };
+  const score = calculateGlobalScore(tempProfile);
 
   ACHIEVEMENTS.forEach(ach => {
     if (profile.achievements.includes(ach.id)) return;
@@ -398,12 +428,8 @@ export const completeLesson = (result: LessonResult, isPractice: boolean = false
   });
 
   const updatedProfile: UserProfile = {
-    ...profile,
+    ...tempProfile,
     streak: profile.streak,
-    progress: {
-      ...profile.progress,
-      [langCode]: updatedProgress
-    },
     dailyGoals: updatedGoals,
     achievements: [...profile.achievements, ...unlockedIds]
   };

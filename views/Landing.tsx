@@ -1,7 +1,6 @@
-
 import React, { useState, useRef } from 'react';
 import { Button } from '../components/Button';
-import { Globe, Sparkles, ArrowRight, Mail, Lock, User, AtSign, ChevronLeft, Camera, UserCircle } from 'lucide-react';
+import { Globe, Sparkles, ArrowRight, Mail, Lock, User, AtSign, ChevronLeft, Camera, UserCircle, Loader2 } from 'lucide-react';
 import { UserProfile } from '../types';
 import { registerUser, loginUser } from '../services/storageService';
 import { AVATARS } from '../constants';
@@ -21,6 +20,7 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   // Avatar Selection State
   const [selectedAvatar, setSelectedAvatar] = useState(AVATARS[0]);
@@ -36,21 +36,25 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
     setSelectedAvatar(AVATARS[0]);
     setIsCustomUpload(false);
     setError('');
+    setIsLoading(false);
   };
 
   const handleLogin = () => {
+    if (isLoading) return;
     setError('');
     if (!email || !password) {
         setError("Please fill in all fields.");
         return;
     }
 
+    setIsLoading(true);
     // Trim inputs to avoid whitespace errors
     const result = loginUser(email.trim(), password.trim());
     if (result.success && result.user) {
         onLogin(result.user);
     } else {
         setError(result.message || "Login failed");
+        setIsLoading(false);
     }
   };
 
@@ -80,12 +84,14 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
   };
 
   const handleSignupFinal = () => {
+    if (isLoading) return;
     setError('');
     if (!name || !username) {
         setError("Please tell us who you are!");
         return;
     }
 
+    setIsLoading(true);
     // Trim inputs to avoid whitespace errors
     // Pass current 'user' (Guest Data) to preserve progress
     const result = registerUser(email.trim(), password.trim(), name, username, selectedAvatar, user);
@@ -93,6 +99,7 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
         onLogin(result.user);
     } else {
         setError(result.message || "Registration failed");
+        setIsLoading(false);
     }
   };
 
@@ -147,7 +154,8 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                             autoComplete="email"
                             value={email} 
                             onChange={e => setEmail(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
+                            disabled={isLoading}
+                            className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none disabled:opacity-50"
                         />
                     </div>
                     <div className="relative">
@@ -158,14 +166,17 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                             autoComplete="current-password"
                             value={password} 
                             onChange={e => setPassword(e.target.value)}
-                            className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none"
+                            disabled={isLoading}
+                            className="w-full pl-12 pr-4 py-3 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none disabled:opacity-50"
                         />
                     </div>
                 </div>
 
-                <Button fullWidth size="lg" onClick={handleLogin}>Log In</Button>
+                <Button fullWidth size="lg" onClick={handleLogin} disabled={isLoading}>
+                  {isLoading ? <div className="flex items-center justify-center gap-2"><Loader2 className="animate-spin" size={20}/> Logging In...</div> : 'Log In'}
+                </Button>
              </div>
-             <button onClick={() => setView('hero')} className="mt-6 w-full text-gray-500 font-bold text-sm uppercase tracking-wider hover:text-gray-800">Cancel</button>
+             <button onClick={() => setView('hero')} disabled={isLoading} className="mt-6 w-full text-gray-500 font-bold text-sm uppercase tracking-wider hover:text-gray-800 disabled:opacity-50">Cancel</button>
         </div>
       )}
 
@@ -212,7 +223,7 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
         <div className="max-w-lg w-full z-10 animate-in slide-in-from-right-10 fade-in duration-500">
             <div className="bg-white/95 backdrop-blur border-2 border-gray-200 p-6 rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto flex flex-col">
                 <div className="flex items-center mb-4">
-                    <button onClick={() => setView('signup_1')} className="p-2 hover:bg-gray-100 rounded-full mr-2 text-gray-400">
+                    <button onClick={() => setView('signup_1')} disabled={isLoading} className="p-2 hover:bg-gray-100 rounded-full mr-2 text-gray-400 disabled:opacity-50">
                         <ChevronLeft size={24} />
                     </button>
                     <h2 className="text-xl font-extrabold text-gray-800 text-center flex-1 mr-10">Create Profile</h2>
@@ -225,14 +236,16 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                         <User className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input 
                             type="text" placeholder="Full Name" value={name} onChange={e => setName(e.target.value)}
-                            className="w-full pl-10 pr-3 py-2 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none text-sm"
+                            disabled={isLoading}
+                            className="w-full pl-10 pr-3 py-2 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none text-sm disabled:opacity-50"
                         />
                     </div>
                     <div className="relative col-span-2 sm:col-span-1">
                         <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={18} />
                         <input 
                             type="text" placeholder="Username" value={username} onChange={e => setUsername(e.target.value)}
-                            className="w-full pl-10 pr-3 py-2 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none text-sm"
+                            disabled={isLoading}
+                            className="w-full pl-10 pr-3 py-2 rounded-xl border-2 border-gray-200 font-bold text-gray-900 bg-white focus:border-brand-blue outline-none text-sm disabled:opacity-50"
                         />
                     </div>
                 </div>
@@ -258,7 +271,8 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                                     <button 
                                         key={av} 
                                         onClick={() => { setSelectedAvatar(av); setIsCustomUpload(false); }}
-                                        className={`aspect-square flex items-center justify-center text-2xl rounded-xl transition-all ${selectedAvatar === av && !isCustomUpload ? 'bg-white border-2 border-brand-blue shadow-sm scale-110' : 'hover:bg-gray-200 border border-transparent'}`}
+                                        disabled={isLoading}
+                                        className={`aspect-square flex items-center justify-center text-2xl rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed ${selectedAvatar === av && !isCustomUpload ? 'bg-white border-2 border-brand-blue shadow-sm scale-110' : 'hover:bg-gray-200 border border-transparent'}`}
                                     >
                                         {av}
                                     </button>
@@ -275,7 +289,8 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                         <div className="mt-3 flex justify-center">
                             <button 
                                 onClick={() => fileInputRef.current?.click()}
-                                className="flex items-center gap-2 bg-white border-2 border-gray-200 px-4 py-2 rounded-xl font-bold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-all text-sm shadow-sm"
+                                disabled={isLoading}
+                                className="flex items-center gap-2 bg-white border-2 border-gray-200 px-4 py-2 rounded-xl font-bold text-gray-600 hover:border-brand-blue hover:text-brand-blue transition-all text-sm shadow-sm disabled:opacity-50"
                             >
                                 <Camera size={16} /> Upload Photo
                             </button>
@@ -290,7 +305,9 @@ export const Landing: React.FC<LandingProps> = ({ onLogin, onContinueAsGuest, us
                     </div>
                 </div>
 
-                <Button fullWidth size="lg" onClick={handleSignupFinal} className="bg-brand-green shadow-[0_4px_0_0_#059669]">Start Learning!</Button>
+                <Button fullWidth size="lg" onClick={handleSignupFinal} className="bg-brand-green shadow-[0_4px_0_0_#059669]" disabled={isLoading}>
+                   {isLoading ? <div className="flex items-center justify-center gap-2"><Loader2 className="animate-spin" size={20}/> Creating Account...</div> : 'Start Learning!'}
+                </Button>
             </div>
         </div>
       )}

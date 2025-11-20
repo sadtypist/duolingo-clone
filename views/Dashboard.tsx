@@ -1,12 +1,11 @@
 
-
 import React, { useState, useEffect } from 'react';
-import { UserProfile, LanguageProgress, Lesson } from '../types';
+import { UserProfile, LanguageProgress, Lesson, ProficiencyLevel } from '../types';
 import { LANGUAGES, MAX_ENERGY, ENERGY_REGEN_MS } from '../constants';
 import { Button } from '../components/Button';
-import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Loader2, AlertCircle, Heart, Clock, Check, WifiOff, Trash2, PlayCircle, X } from 'lucide-react';
+import { Star, Lock, Target, Trophy, Zap, Dumbbell, Download, Loader2, AlertCircle, Heart, Clock, Check, WifiOff, Trash2, PlayCircle, X, GraduationCap } from 'lucide-react';
 import { generateLesson } from '../services/geminiService';
-import { saveOfflineLesson, getOfflineLessonCount, getOfflineLessons, deleteOfflineLesson } from '../services/storageService';
+import { saveOfflineLesson, getOfflineLessonCount, getOfflineLessons, deleteOfflineLesson, calculateGlobalScore } from '../services/storageService';
 
 interface DashboardProps {
   user: UserProfile;
@@ -26,6 +25,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
   const nativeLangName = LANGUAGES.find(l => l.code === (user.nativeLanguageCode || 'en'))?.name || 'English';
   const progress = user.currentLanguageCode ? user.progress[user.currentLanguageCode] : null;
   const totalXP = (Object.values(user.progress) as LanguageProgress[]).reduce((acc, p) => acc + p.xp, 0);
+  const globalScore = calculateGlobalScore(user);
+
+  // Default to Beginner if undefined (legacy support)
+  const currentProficiency = progress?.proficiency || 'Beginner';
 
   useEffect(() => {
       if (user.currentLanguageCode) {
@@ -91,7 +94,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
 
           // Download 1 lesson at a time to be safe, loop twice
           for (let i = 0; i < 2; i++) {
-              const lesson = await generateLesson(currentLang.name, nativeLangName, level, [], false, [], 'Medium', questionCount);
+              const lesson = await generateLesson(
+                  currentLang.name, 
+                  nativeLangName, 
+                  level, 
+                  [], 
+                  false, 
+                  [], 
+                  'Medium', 
+                  questionCount,
+                  currentProficiency
+              );
               if (lesson) {
                   saveOfflineLesson({ ...lesson, savedAt: new Date().toISOString(), languageCode: currentLang.code });
                   setOfflineCount(prev => prev + 1);
@@ -212,23 +225,37 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
 
        {/* Top Bar */}
        <header className="sticky top-0 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm z-20 border-b border-gray-200 dark:border-gray-700 p-4 flex justify-between items-center w-full md:rounded-t-2xl">
-          <div className="flex items-center gap-2 cursor-pointer hover:opacity-75" onClick={onChangeLanguage}>
-             <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center relative">
-                {currentLang.countryCode ? (
-                  <img 
-                    src={`https://flagcdn.com/w80/${currentLang.countryCode.toLowerCase()}.png`}
-                    alt={currentLang.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : (
-                  <span className="text-lg">{currentLang.flag}</span>
-                )}
-             </div>
-             <span className="font-extrabold text-gray-500 dark:text-gray-400 uppercase text-sm tracking-wide">{currentLang.name}</span>
+          <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 cursor-pointer hover:opacity-75 transition-opacity" onClick={onChangeLanguage}>
+                <div className="w-8 h-8 rounded-full overflow-hidden border border-gray-200 dark:border-gray-600 bg-gray-100 dark:bg-gray-700 flex items-center justify-center relative">
+                    {currentLang.countryCode ? (
+                    <img 
+                        src={`https://flagcdn.com/w80/${currentLang.countryCode.toLowerCase()}.png`}
+                        alt={currentLang.name}
+                        className="w-full h-full object-cover"
+                    />
+                    ) : (
+                    <span className="text-lg">{currentLang.flag}</span>
+                    )}
+                </div>
+                <span className="font-extrabold text-gray-700 dark:text-gray-200 uppercase text-sm tracking-wide hidden sm:block">{currentLang.name}</span>
+              </div>
+              
+              <div className="h-6 w-px bg-gray-200 dark:bg-gray-700 mx-1"></div>
+
+              {/* Proficiency Badge (Read-Only) */}
+              <div 
+                className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20 px-2 py-1 rounded-lg cursor-default"
+                title="Current Proficiency Level (Auto-Updates)"
+              >
+                 <GraduationCap size={14} className="text-brand-blue dark:text-blue-400" />
+                 <span className="text-xs font-bold text-brand-blue dark:text-blue-300">{currentProficiency}</span>
+              </div>
           </div>
+
           <div className="flex items-center gap-3 sm:gap-4">
              {/* Energy Display */}
-             <div className="flex items-center gap-1 px-3 py-1 rounded-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600" title="Energy">
+             <div className="hidden md:flex items-center gap-1 px-3 py-1 rounded-full bg-gray-50 dark:bg-gray-700 border border-gray-200 dark:border-gray-600" title="Energy">
                 <Heart size={20} fill="currentColor" className="text-brand-red" />
                 <div className="flex flex-col leading-none">
                     <span className="text-brand-red font-extrabold text-sm">{user.energy}/{MAX_ENERGY}</span>
@@ -238,10 +265,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user, onStartLesson, onSta
                 </div>
              </div>
 
-             {/* Streak Display */}
-             <div className="hidden sm:flex items-center text-brand-yellow font-bold" title="Daily Streak">
-                <div className="w-3 h-3 rounded-full bg-brand-red mr-2 animate-pulse"></div>
-                {user.streak}
+             {/* Global Score Display (New) */}
+             <div className="flex items-center text-purple-600 dark:text-purple-400 font-bold px-3 py-1 rounded-full bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-800" title="Global Language Score">
+                <Trophy size={18} className="mr-1" fill="currentColor" />
+                {globalScore}
              </div>
 
              {/* XP Display */}

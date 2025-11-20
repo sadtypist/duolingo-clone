@@ -1,7 +1,7 @@
 
 
 import React from 'react';
-import { UserProfile } from '../types';
+import { UserProfile, UserPreferences } from '../types';
 import { Settings as SettingsIcon, BrainCircuit, Volume2, BookOpen, Flame, Target, Moon, ZapOff, Clock } from 'lucide-react';
 
 interface SettingsProps {
@@ -10,17 +10,20 @@ interface SettingsProps {
 }
 
 export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) => {
-  // Helper to toggle boolean preferences
-  const togglePreference = (key: keyof typeof user.preferences) => {
+  // Helper to toggle boolean preferences safely
+  const toggleBoolPreference = (key: keyof UserPreferences) => {
+    const currentValue = user.preferences[key];
+    if (typeof currentValue !== 'boolean') return;
+
     const newPrefs = {
       ...user.preferences,
-      [key]: !user.preferences[key as keyof typeof user.preferences]
+      [key]: !currentValue
     };
     onUpdateUser({ ...user, preferences: newPrefs });
   };
 
   // Helper to set numeric preferences
-  const setNumericPreference = (key: keyof typeof user.preferences, value: number) => {
+  const setNumericPreference = (key: keyof UserPreferences, value: number) => {
      const newPrefs = {
       ...user.preferences,
       [key]: value
@@ -59,7 +62,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
               </div>
             </div>
             <button 
-              onClick={() => togglePreference('darkMode')}
+              onClick={() => toggleBoolPreference('darkMode')}
               className={`relative w-14 h-8 rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue ${user.preferences?.darkMode ? 'bg-brand-green' : 'bg-gray-300 dark:bg-gray-500'}`}
             >
               <span className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${user.preferences?.darkMode ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -79,7 +82,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
               </div>
             </div>
             <button 
-              onClick={() => togglePreference('disableAnimations')}
+              onClick={() => toggleBoolPreference('disableAnimations')}
               className={`relative w-14 h-8 rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue ${user.preferences?.disableAnimations ? 'bg-brand-green' : 'bg-gray-300 dark:bg-gray-500'}`}
             >
               <span className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${user.preferences?.disableAnimations ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -105,7 +108,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
               </div>
             </div>
             <button 
-              onClick={() => togglePreference('enableSoundEffects')}
+              onClick={() => toggleBoolPreference('enableSoundEffects')}
               className={`relative w-14 h-8 rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue ${user.preferences?.enableSoundEffects ? 'bg-brand-green' : 'bg-gray-300 dark:bg-gray-500'}`}
             >
               <span className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${user.preferences?.enableSoundEffects ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -135,7 +138,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
               </div>
             </div>
             <button 
-              onClick={() => togglePreference('autoDifficulty')}
+              onClick={() => toggleBoolPreference('autoDifficulty')}
               className={`relative w-14 h-8 rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue ${user.preferences?.autoDifficulty ? 'bg-brand-green' : 'bg-gray-300 dark:bg-gray-500'}`}
             >
               <span className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${user.preferences?.autoDifficulty ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -180,7 +183,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
               </div>
             </div>
             <button 
-              onClick={() => togglePreference('showCharacters')}
+              onClick={() => toggleBoolPreference('showCharacters')}
               className={`relative w-14 h-8 rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue ${user.preferences?.showCharacters ? 'bg-brand-green' : 'bg-gray-300 dark:bg-gray-500'}`}
             >
               <span className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${user.preferences?.showCharacters ? 'translate-x-6' : 'translate-x-0'}`} />
@@ -205,7 +208,7 @@ export const SettingsView: React.FC<SettingsProps> = ({ user, onUpdateUser }) =>
               </div>
             </div>
             <button 
-              onClick={() => togglePreference('enableStreakFreeze')}
+              onClick={() => toggleBoolPreference('enableStreakFreeze')}
               className={`relative w-14 h-8 rounded-full transition-colors duration-300 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-brand-blue ${user.preferences?.enableStreakFreeze ? 'bg-brand-green' : 'bg-gray-300 dark:bg-gray-500'}`}
             >
               <span className={`absolute top-1 left-1 bg-white w-6 h-6 rounded-full shadow-md transform transition-transform duration-300 ease-in-out ${user.preferences?.enableStreakFreeze ? 'translate-x-6' : 'translate-x-0'}`} />

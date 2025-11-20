@@ -1,7 +1,6 @@
 
-
 import { GoogleGenAI, Type } from "@google/genai";
-import { Lesson } from '../types';
+import { Lesson, ProficiencyLevel } from '../types';
 
 // IMPORTANT: In a real app, this should be proxied through a backend.
 const API_KEY = process.env.API_KEY || ''; 
@@ -12,6 +11,11 @@ if (API_KEY) {
   ai = new GoogleGenAI({ apiKey: API_KEY });
 }
 
+// Helper to sanitize JSON string from Markdown code blocks
+const sanitizeJson = (text: string): string => {
+  return text.replace(/```json\n?/g, '').replace(/```/g, '').trim();
+};
+
 export const generateLesson = async (
   languageName: string, 
   nativeLanguageName: string,
@@ -20,7 +24,8 @@ export const generateLesson = async (
   isPractice: boolean = false,
   focusCharacters: string[] = [],
   difficulty: 'Easy' | 'Medium' | 'Hard' = 'Medium',
-  questionCount: number = 5
+  questionCount: number = 5,
+  proficiency: ProficiencyLevel = 'Beginner'
 ): Promise<Lesson | null> => {
   if (!ai) {
     console.error("Gemini API Key not found");
@@ -67,17 +72,44 @@ export const generateLesson = async (
       difficultyInstruction = "Difficulty: BEGINNER. Focus strictly on identifying these characters and their sounds. No complex grammar.";
   } else {
       switch(difficulty) {
-          case 'Easy': difficultyInstruction = "Difficulty: EASY. Use simple vocabulary, clear context, shorter sentences, and avoid complex grammar exceptions."; break;
-          case 'Medium': difficultyInstruction = "Difficulty: MEDIUM. Standard complexity for this proficiency level. Mix common and slightly challenging concepts."; break;
-          case 'Hard': difficultyInstruction = "Difficulty: HARD. Challenge the user with complex sentence structures, advanced vocabulary, faster implied speech context, and trickier distractors."; break;
+          case 'Easy': difficultyInstruction = "Difficulty: RELAXED. Use simple vocabulary, clear context, shorter sentences, and avoid complex grammar exceptions."; break;
+          case 'Medium': difficultyInstruction = "Difficulty: STANDARD. Standard complexity for this proficiency level. Mix common and slightly challenging concepts."; break;
+          case 'Hard': difficultyInstruction = "Difficulty: CHALLENGING. Challenge the user with complex sentence structures, advanced vocabulary, faster implied speech context, and trickier distractors."; break;
       }
   }
 
+  // Proficiency Context
+  let proficiencyContext = "";
+  switch (proficiency) {
+    case 'Beginner':
+      proficiencyContext = `User Proficiency: BEGINNER (A1-A2).
+      - Focus on fundamental vocabulary (colors, numbers, greetings, family).
+      - Use Simple Present tense primarily.
+      - Sentence structures should be basic (Subject-Verb-Object).
+      - Avoid slang or complex idioms.`;
+      break;
+    case 'Intermediate':
+      proficiencyContext = `User Proficiency: INTERMEDIATE (B1-B2).
+      - Introduce wider vocabulary (work, travel, emotions, hobbies).
+      - Use mixed tenses (Past, Future, Continuous).
+      - Sentence structures can include conjunctions and dependent clauses.
+      - Introduce common idioms and conversational phrases.`;
+      break;
+    case 'Advanced':
+      proficiencyContext = `User Proficiency: ADVANCED (C1-C2).
+      - Use sophisticated vocabulary (politics, abstract concepts, technical terms).
+      - Use complex grammar (Subjunctive, Conditional, Passive Voice).
+      - Sentences should be natural, fluent, and varied in structure.
+      - Include cultural nuances, slang, and formal vs informal distinctions.`;
+      break;
+  }
+
   const prompt = `Create a ${difficulty} ${isPractice ? 'practice review' : 'dynamic lesson'} for learning ${languageName} from ${nativeLanguageName} (Level ${userLevel}/10).
+  ${proficiencyContext}
   ${adaptiveContext}
   ${difficultyInstruction}
   
-  Generate exactly ${questionCount} questions with a mix of these types:
+  Generate exactly ${questionCount} DISTINCT and UNIQUE questions with a mix of these types:
   1. MULTIPLE_CHOICE: Standard grammar/vocab question.
   2. FILL_BLANK: A sentence with a missing word indicated by '____'. Options are words to fill it.
   3. TRANSLATE: A short phrase or basic sentence in ${nativeLanguageName} (or target language) to translate.
@@ -89,6 +121,7 @@ export const generateLesson = async (
   - Ensure 'questionText' is clear. 
   - For LISTENING, the questionText is what will be spoken by TTS.
   - For SPEAKING, the questionText is what the user sees and must speak.
+  - Ensure ALL questions are different from each other to avoid repetition.
   - Include a 'topic' field for each.
   The output must be valid JSON.`;
 
@@ -134,7 +167,9 @@ export const generateLesson = async (
 
     const text = response.text;
     if (!text) return null;
-    return JSON.parse(text) as Lesson;
+    
+    const cleanText = sanitizeJson(text);
+    return JSON.parse(cleanText) as Lesson;
 
   } catch (error) {
     console.error("Error generating lesson:", error);
@@ -194,7 +229,9 @@ export const validateTranslation = async (originalText: string, userTranslation:
 
     const text = response.text;
     if (!text) return false;
-    const result = JSON.parse(text);
+    
+    const cleanText = sanitizeJson(text);
+    const result = JSON.parse(cleanText);
     return result.isCorrect;
   } catch (e) {
     console.error("Validation error", e);
